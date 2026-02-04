@@ -5,7 +5,7 @@ import { useNavigate } from "react-router-dom";
 
 const EXPENSE_MACROS = [
   "Moradia", "Alimentação", "Transporte", "Lazer", 
-  "Saúde", "Educação", "Assinaturas", "Compras", "Outros"
+  "Saúde", "Educação", "Assinaturas", "Compras", "Pai", "Mãe", "Outros"
 ];
 
 const INCOME_MACROS = [
