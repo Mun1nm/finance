@@ -11,19 +11,20 @@ import {
   deleteDoc,
   updateDoc,
   doc,
-  Timestamp // Importar Timestamp
+  Timestamp 
 } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
 
 export function useTransactions() {
-  const { currentUser } = useAuth();
+  const { currentUser, userProfile } = useAuth();
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const transactionRef = collection(db, "transactions");
 
   useEffect(() => {
-    if (!currentUser) {
+    // Bloqueia leitura se não autorizado
+    if (!currentUser || !userProfile?.isAuthorized) {
         setTransactions([]);
         setLoading(false);
         return;
@@ -43,29 +44,21 @@ export function useTransactions() {
       setTransactions(data);
       setLoading(false);
     }, (error) => {
-      console.error("Erro ao buscar transações:", error);
-      setLoading(false);
+      console.log("Aguardando permissão de leitura...");
     });
 
     return unsubscribe;
-  }, [currentUser]);
+  }, [currentUser, userProfile]);
 
-  // Função auxiliar para tratar a data
   const parseDate = (dateString) => {
     if (!dateString) return serverTimestamp();
-    
-    // Cria a data baseada na string YYYY-MM-DD
-    // Adiciona "T12:00:00" para evitar problemas de fuso horário (UTC vs Local)
-    // Ou melhor: Vamos pegar a data escolhida e colocar o horário atual
     const now = new Date();
     const [year, month, day] = dateString.split('-').map(Number);
-    
-    // Cria data local: Ano, Mês (0-index), Dia, Hora Atual, Minuto Atual
     return new Date(year, month - 1, day, now.getHours(), now.getMinutes());
   };
 
-  // ATUALIZADO: Aceita date (string YYYY-MM-DD)
   const addTransaction = async (amount, category, macro, type = 'expense', isDebt = false, description = "", date = null) => {
+    if (!userProfile?.isAuthorized) return;
     if (!amount) return;
     
     await addDoc(transactionRef, {
@@ -77,17 +70,18 @@ export function useTransactions() {
       description,
       isDebt,
       debtPaid: false,
-      date: parseDate(date) // Usa a data customizada ou servidor
+      date: parseDate(date)
     });
   };
 
   const deleteTransaction = async (id) => {
+    if (!userProfile?.isAuthorized) return;
     const docRef = doc(db, "transactions", id);
     await deleteDoc(docRef);
   };
 
-  // ATUALIZADO: Aceita date
   const updateTransaction = async (id, amount, category, macro, type, isDebt, description = "", date = null) => {
+    if (!userProfile?.isAuthorized) return;
     const docRef = doc(db, "transactions", id);
     
     const updateData = {
@@ -99,7 +93,6 @@ export function useTransactions() {
       description
     };
 
-    // Só atualiza a data se o usuário passou uma nova, senão mantém a original
     if (date) {
       updateData.date = parseDate(date);
     }
@@ -108,6 +101,7 @@ export function useTransactions() {
   };
 
   const toggleDebtStatus = async (id, currentStatus) => {
+    if (!userProfile?.isAuthorized) return;
     const docRef = doc(db, "transactions", id);
     await updateDoc(docRef, {
       debtPaid: !currentStatus

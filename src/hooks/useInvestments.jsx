@@ -7,7 +7,7 @@ import {
   where, 
   onSnapshot, 
   updateDoc,
-  deleteDoc, // <--- Importar deleteDoc
+  deleteDoc, 
   doc,
   serverTimestamp,
   arrayUnion 
@@ -15,14 +15,18 @@ import {
 import { useAuth } from "../contexts/AuthContext";
 
 export function useInvestments() {
-  const { currentUser } = useAuth();
+  const { currentUser, userProfile } = useAuth();
   const [assets, setAssets] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const assetsRef = collection(db, "assets");
 
   useEffect(() => {
-    if (!currentUser) return;
+    if (!currentUser || !userProfile?.isAuthorized) {
+        setAssets([]);
+        setLoading(false);
+        return;
+    }
 
     const q = query(assetsRef, where("uid", "==", currentUser.uid));
     
@@ -33,12 +37,15 @@ export function useInvestments() {
       }));
       setAssets(data);
       setLoading(false);
+    }, (error) => {
+      console.log("Aguardando permissão de leitura...");
     });
 
     return unsubscribe;
-  }, [currentUser]);
+  }, [currentUser, userProfile]);
 
   const addAsset = async (name, type, initialValue = 0) => {
+    if (!userProfile?.isAuthorized) return;
     await addDoc(assetsRef, {
       uid: currentUser.uid,
       name,
@@ -53,6 +60,7 @@ export function useInvestments() {
   };
 
   const updateBalance = async (id, newValue) => {
+    if (!userProfile?.isAuthorized) return;
     const assetRef = doc(db, "assets", id);
     await updateDoc(assetRef, {
       currentValue: parseFloat(newValue),
@@ -66,6 +74,7 @@ export function useInvestments() {
   };
 
   const addContribution = async (id, amount) => {
+    if (!userProfile?.isAuthorized) return;
     const asset = assets.find(a => a.id === id);
     if (!asset) return;
 
@@ -86,8 +95,8 @@ export function useInvestments() {
     });
   };
 
-  // --- NOVA FUNÇÃO ---
   const deleteAsset = async (id) => {
+    if (!userProfile?.isAuthorized) return;
     const assetRef = doc(db, "assets", id);
     await deleteDoc(assetRef);
   };

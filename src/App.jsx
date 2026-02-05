@@ -3,46 +3,38 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import CategoriesPage from "./pages/CategoriesPage";
-import InvestmentsPage from "./pages/InvestmentsPage"; // <--- O import que faltava
+import InvestmentsPage from "./pages/InvestmentsPage";
+import Unauthorized from "./pages/Unauthorized"; // Importe a tela nova
 
-// Componente que protege a rota
 function PrivateRoute({ children }) {
-  const { currentUser } = useAuth();
-  return currentUser ? children : <Navigate to="/login" />;
+  const { currentUser, userProfile, loading } = useAuth();
+
+  if (loading) return <div className="min-h-screen bg-gray-900 text-white flex items-center justify-center">Carregando...</div>;
+
+  if (!currentUser) {
+    return <Navigate to="/login" />;
+  }
+
+  // Verifica se o perfil carregou e se está autorizado
+  if (userProfile && userProfile.isAuthorized !== true) {
+    return <Unauthorized />;
+  }
+
+  return children;
 }
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
+    <BrowserRouter>
+      <AuthProvider>
         <Routes>
           <Route path="/login" element={<Login />} />
-          <Route
-            path="/"
-            element={
-              <PrivateRoute>
-                <Dashboard />
-              </PrivateRoute>
-            }
-          />
-          <Route
-            path="/categories" 
-            element={
-              <PrivateRoute>
-                <CategoriesPage />
-              </PrivateRoute>
-            } 
-          />
-          <Route 
-            path="/investments" 
-            element={
-              <PrivateRoute>
-                <InvestmentsPage />
-              </PrivateRoute>
-            } 
-          />
+          
+          <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+          <Route path="/categories" element={<PrivateRoute><CategoriesPage /></PrivateRoute>} />
+          <Route path="/investments" element={<PrivateRoute><InvestmentsPage /></PrivateRoute>} />
         </Routes>
-      </BrowserRouter>
-    </AuthProvider>
+      </AuthProvider>
+    </BrowserRouter>
   );
 }
