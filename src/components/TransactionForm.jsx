@@ -16,7 +16,6 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
   const [isDebt, setIsDebt] = useState(false);
   const [selectedWallet, setSelectedWallet] = useState("");
   
-  // NOVO: Dia do vencimento (Padrão: dia atual)
   const [dueDay, setDueDay] = useState(new Date().getDate());
 
   useEffect(() => {
@@ -43,19 +42,17 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       setIsSubscription(false);
       setIsDebt(initialData.isDebt || false);
       setSelectedWallet(initialData.walletId || "");
-      setDueDay(new Date().getDate()); // Reset dia
+      setDueDay(new Date().getDate());
 
     } else {
-      // MODO CRIAÇÃO
       setAmount("");
       setSelectedId("");
       setDescription("");
       setDate(today);
       setIsSubscription(false);
       setIsDebt(false);
-      setDueDay(new Date().getDate()); // Reset dia
+      setDueDay(new Date().getDate());
       
-      // Lógica da carteira padrão
       if (wallets && wallets.length > 0) {
           const defaultWallet = wallets.find(w => w.isDefault);
           if (defaultWallet) {
@@ -86,7 +83,6 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       isSubscription,
       isDebt,
       walletId: selectedWallet,
-      // Se for assinatura, envia o dia escolhido, senão null
       dueDay: isSubscription ? dueDay : null 
     };
 
@@ -159,17 +155,16 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
            </div>
         )}
 
-        <div className="flex gap-2">
-            <div className="relative w-40 shrink-0">
-                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
+        <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative w-full sm:w-40 shrink-0">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10">
                     <Calendar size={16} />
                 </div>
                 <input 
                     type="date"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    onClick={(e) => e.target.showPicker && e.target.showPicker()}
-                    className="w-full bg-gray-700 text-white rounded-lg p-3 pl-10 outline-none focus:ring-2 focus:ring-blue-500 text-sm h-full [&::-webkit-calendar-picker-indicator]:hidden cursor-pointer"
+                    className="w-full bg-gray-700 text-white rounded-lg p-3 pl-10 outline-none focus:ring-2 focus:ring-blue-500 text-sm h-full appearance-none min-w-[120px] [&::-webkit-calendar-picker-indicator]:hidden"
                     required
                 />
             </div>
@@ -186,7 +181,8 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
         <div>
           {type === 'investment' ? (
              assets.length > 0 ? (
-                <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)} className="w-full bg-gray-700 text-white rounded-lg p-3 outline-none focus:ring-2 focus:ring-purple-500 border border-purple-500/30">
+                // CORRIGIDO: Removido o focus:ring-purple-500 e border-purple
+                <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)} className="w-full bg-gray-700 text-white rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="" disabled>Selecione o Ativo</option>
                   {assets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
                 </select>
@@ -217,7 +213,6 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
                 <RefreshCw size={14} /> Repetir mensalmente
               </label>
               
-              {/* INPUT DO DIA DA ASSINATURA */}
               {isSubscription && (
                 <div className="flex items-center gap-2 ml-auto">
                     <span className="text-xs text-blue-300">Todo dia:</span>

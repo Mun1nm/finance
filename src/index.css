@@ -1,1 +1,30 @@
 @import "tailwindcss";
+
+/* --- CORREÇÃO DO FUNDO BRANCO E SCROLL --- */
+body, html {
+  background-color: #111827; /* Cor gray-900 do Tailwind */
+  color: #f3f4f6; /* Cor gray-100 */
+  margin: 0;
+  padding: 0;
+  height: 100%; /* Garante que o fundo cubra 100% da altura */
+  overflow-x: hidden; /* Evita scroll horizontal indesejado */
+}
+
+/* Opcional: Estilização da Barra de Rolagem (Scrollbar) para ficar escura */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #1f2937; /* gray-800 */
+}
+
+::-webkit-scrollbar-thumb {
+  background: #4b5563; /* gray-600 */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #6b7280; /* gray-500 */
+}
