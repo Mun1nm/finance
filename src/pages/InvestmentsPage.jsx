@@ -1,15 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useInvestments } from "../hooks/useInvestments";
 import { useTransactions } from "../hooks/useTransactions";
-import { ArrowLeft, Plus, TrendingUp, DollarSign, RefreshCw, Trash2 } from "lucide-react"; // Trash2 adicionado
+import { useWallets } from "../hooks/useWallets"; // <--- NOVO IMPORT
+import { ArrowLeft, Plus, TrendingUp, DollarSign, RefreshCw, Trash2, Wallet } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { MoneyInput } from "../components/MoneyInput";
 import { Notification } from "../components/Notification";
-import { ConfirmModal } from "../components/ConfirmModal"; // Usando o modal que já criamos
+import { ConfirmModal } from "../components/ConfirmModal";
 
 export default function InvestmentsPage() {
-  const { assets, addAsset, updateBalance, addContribution, deleteAsset } = useInvestments(); // deleteAsset importado
+  const { assets, addAsset, updateBalance, addContribution, deleteAsset } = useInvestments();
   const { addTransaction } = useTransactions();
+  const { wallets } = useWallets(); // <--- Pegando as carteiras
   const navigate = useNavigate();
 
   // Estados de UI
@@ -24,6 +26,7 @@ export default function InvestmentsPage() {
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [notification, setNotification] = useState(null);
+  const [selectedWallet, setSelectedWallet] = useState(""); // <--- Estado da Carteira
 
   // Totais Gerais
   const totalInvested = assets.reduce((acc, a) => acc + (a.investedAmount || 0), 0);
@@ -31,12 +34,29 @@ export default function InvestmentsPage() {
   const totalYield = totalCurrent - totalInvested;
   const yieldPercentage = totalInvested > 0 ? (totalYield / totalInvested) * 100 : 0;
 
+  // Efeito para selecionar carteira padrão automaticamente
+  useEffect(() => {
+    if (wallets && wallets.length > 0 && !selectedWallet) {
+        const defaultWallet = wallets.find(w => w.isDefault);
+        setSelectedWallet(defaultWallet ? defaultWallet.id : wallets[0].id);
+    }
+  }, [wallets, isCreating, selectedAsset]); // Reseta quando abre modais
+
+  // --- AÇÃO 1: CRIAR NOVO ATIVO ---
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!name || !amount) return;
+    if (!selectedWallet) {
+        setNotification({ msg: "Selecione a conta de origem!", type: "error" });
+        return;
+    }
     
+    // 1. Cria o ativo na carteira
     await addAsset(name, "fixed", amount); 
-    await addTransaction(amount, name, "Investimentos", "investment", false, "Aporte Inicial");
+    
+    // 2. Tira o dinheiro do caixa (Cria transação com walletId)
+    // Params: valor, categoria, macro, tipo, isDebt, descricao, data, walletId
+    await addTransaction(amount, name, "Investimentos", "investment", false, "Aporte Inicial", null, selectedWallet);
 
     setNotification({ msg: "Investimento criado e debitado do saldo!", type: "success" });
     setIsCreating(false);
@@ -44,24 +64,35 @@ export default function InvestmentsPage() {
     setAmount("");
   };
 
+  // --- AÇÃO 2: APORTE OU RENDIMENTO ---
   const handleAction = async (e) => {
     e.preventDefault();
     if (!amount) return;
 
     if (actionType === 'update') {
+      // Rendimento: NÃO mexe no caixa, só atualiza o valor lá dentro
       await updateBalance(selectedAsset.id, amount);
       setNotification({ msg: "Rentabilidade atualizada!", type: "success" });
     } 
     else if (actionType === 'contribute') {
+      if (!selectedWallet) {
+        setNotification({ msg: "Selecione a conta de origem!", type: "error" });
+        return;
+      }
+      
+      // Aporte: Mexe no caixa
+      // 1. Aumenta o valor investido
       await addContribution(selectedAsset.id, amount);
-      await addTransaction(amount, selectedAsset.name, "Investimentos", "investment", false, "Aporte Adicional");
+      
+      // 2. Registra a saída do dinheiro na Dashboard com a Carteira Selecionada
+      await addTransaction(amount, selectedAsset.name, "Investimentos", "investment", false, "Aporte Adicional", null, selectedWallet);
+      
       setNotification({ msg: "Aporte registrado e debitado do saldo!", type: "success" });
     }
 
     closeModal();
   };
 
-  // --- FUNÇÃO DE DELETAR ---
   const handleDeleteRequest = (id) => {
     setDeleteModal({ isOpen: true, id });
   };
@@ -84,13 +115,12 @@ export default function InvestmentsPage() {
     <div className="min-h-screen bg-gray-900 text-gray-100 p-4 pb-24">
        <Notification message={notification?.msg} type={notification?.type} onClose={() => setNotification(null)} />
        
-       {/* MODAL DE CONFIRMAÇÃO DE EXCLUSÃO */}
        <ConfirmModal 
         isOpen={deleteModal.isOpen}
         onClose={() => setDeleteModal({ isOpen: false, id: null })}
         onConfirm={confirmDelete}
         title="Excluir Ativo"
-        message="Tem certeza? Isso apagará todo o histórico de rentabilidade deste investimento. As transações de saída do caixa (aportes) NÃO serão apagadas."
+        message="Tem certeza? Isso apagará todo o histórico de rentabilidade. As transações de saída (aportes) NÃO serão apagadas do seu extrato."
       />
 
       {/* HEADER */}
@@ -122,10 +152,35 @@ export default function InvestmentsPage() {
               onChange={e => setName(e.target.value)}
               className="w-full bg-gray-700 p-3 rounded-lg text-white outline-none focus:ring-2 focus:ring-purple-500"
             />
+            
             <div className="space-y-1">
-              <label className="text-xs text-gray-400">Valor Inicial (Sai do seu caixa)</label>
+              <label className="text-xs text-gray-400">Valor Inicial (Sai do caixa)</label>
               <MoneyInput value={amount} onChange={setAmount} />
             </div>
+
+            {/* SELETOR DE CARTEIRA NA CRIAÇÃO */}
+            {wallets.length > 0 && (
+                <div className="space-y-1">
+                    <label className="text-xs text-gray-400">Conta de Origem</label>
+                    <div className="relative">
+                        <select 
+                            value={selectedWallet} 
+                            onChange={e => setSelectedWallet(e.target.value)}
+                            className="w-full bg-gray-700 text-white rounded-lg p-3 outline-none focus:ring-2 focus:ring-purple-500 border border-gray-600 appearance-none"
+                            required
+                        >
+                            <option value="" disabled>Selecione a conta...</option>
+                            {wallets.map(w => (
+                                <option key={w.id} value={w.id}>{w.name} {w.isDefault ? '(Padrão)' : ''}</option>
+                            ))}
+                        </select>
+                         <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                             <Wallet size={16} />
+                         </div>
+                    </div>
+                </div>
+            )}
+
             <div className="flex gap-2">
               <button type="button" onClick={() => setIsCreating(false)} className="flex-1 py-3 bg-gray-700 rounded-lg font-medium hover:bg-gray-600">Cancelar</button>
               <button type="submit" className="flex-1 py-3 bg-purple-600 rounded-lg font-bold hover:bg-purple-700 shadow-lg">Criar & Debitar</button>
@@ -203,7 +258,6 @@ export default function InvestmentsPage() {
                 >
                   <RefreshCw size={14} /> Atualizar
                 </button>
-                {/* BOTÃO DE EXCLUIR */}
                 <button 
                   onClick={() => handleDeleteRequest(asset.id)}
                   className="px-3 py-2 bg-gray-700 hover:bg-red-500/20 text-gray-500 hover:text-red-500 rounded-lg transition-colors flex items-center justify-center"
@@ -231,12 +285,35 @@ export default function InvestmentsPage() {
               }
             </p>
 
-            <div className="mb-6">
+            <div className="mb-4">
               <MoneyInput value={amount} onChange={setAmount} />
               {actionType === 'contribute' && (
                 <p className="text-xs text-orange-400 mt-2 text-center">Isso será registrado como saída na sua Dashboard.</p>
               )}
             </div>
+
+            {/* SELETOR DE CARTEIRA NO MODAL DE APORTE */}
+            {actionType === 'contribute' && wallets.length > 0 && (
+                <div className="mb-6 space-y-1">
+                    <label className="text-xs text-gray-400">Saindo da Conta</label>
+                    <div className="relative">
+                        <select 
+                            value={selectedWallet} 
+                            onChange={e => setSelectedWallet(e.target.value)}
+                            className="w-full bg-gray-700 text-white rounded-lg p-3 outline-none focus:ring-2 focus:ring-purple-500 border border-gray-600 appearance-none"
+                            required
+                        >
+                            <option value="" disabled>Selecione a conta...</option>
+                            {wallets.map(w => (
+                                <option key={w.id} value={w.id}>{w.name} {w.isDefault ? '(Padrão)' : ''}</option>
+                            ))}
+                        </select>
+                         <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                             <Wallet size={16} />
+                         </div>
+                    </div>
+                </div>
+            )}
 
             <div className="flex gap-3">
               <button onClick={closeModal} className="flex-1 py-3 rounded-lg border border-gray-600 text-gray-300 font-bold hover:bg-gray-700">Cancelar</button>

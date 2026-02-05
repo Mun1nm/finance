@@ -3,9 +3,8 @@ import { RefreshCw, Pencil, X, User, TrendingUp, Calendar } from "lucide-react";
 import { MoneyInput } from "./MoneyInput";
 import { useNavigate } from "react-router-dom";
 
-export function TransactionForm({ onSubmit, categories, assets, initialData, onCancelEdit }) {
+export function TransactionForm({ onSubmit, categories, assets, wallets, initialData, onCancelEdit }) {
   const navigate = useNavigate();
-
   const today = new Date().toLocaleDateString('en-CA');
 
   const [amount, setAmount] = useState("");
@@ -15,6 +14,7 @@ export function TransactionForm({ onSubmit, categories, assets, initialData, onC
   const [type, setType] = useState("expense");
   const [isSubscription, setIsSubscription] = useState(false);
   const [isDebt, setIsDebt] = useState(false);
+  const [selectedWallet, setSelectedWallet] = useState("");
 
   useEffect(() => {
     if (initialData) {
@@ -39,21 +39,40 @@ export function TransactionForm({ onSubmit, categories, assets, initialData, onC
 
       setIsSubscription(false);
       setIsDebt(initialData.isDebt || false);
+      setSelectedWallet(initialData.walletId || "");
+
     } else {
+      // MODO CRIAÇÃO (Novo Registro)
       setAmount("");
       setSelectedId("");
       setDescription("");
       setDate(today);
       setIsSubscription(false);
       setIsDebt(false);
+      
+      // LÓGICA DA CARTEIRA PADRÃO
+      if (wallets && wallets.length > 0) {
+          const defaultWallet = wallets.find(w => w.isDefault);
+          if (defaultWallet) {
+              setSelectedWallet(defaultWallet.id);
+          } else {
+              // Se nenhuma for padrão, pega a primeira
+              setSelectedWallet(wallets[0].id);
+          }
+      }
     }
-  }, [initialData, categories, assets]);
+  }, [initialData, categories, assets, wallets]); // Recalcula se 'wallets' mudar (ex: marcou nova padrão)
 
   const availableCategories = categories.filter(c => (c.type || 'expense') === type);
 
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!amount || !selectedId) return;
+    
+    if (wallets.length > 0 && !selectedWallet && type !== 'investment') {
+        alert("Selecione uma conta/carteira!");
+        return;
+    }
 
     let submitData = {
       amount,
@@ -61,7 +80,8 @@ export function TransactionForm({ onSubmit, categories, assets, initialData, onC
       description,
       date,
       isSubscription,
-      isDebt
+      isDebt,
+      walletId: selectedWallet
     };
 
     if (type === 'investment') {
@@ -83,6 +103,7 @@ export function TransactionForm({ onSubmit, categories, assets, initialData, onC
         setDate(today);
         setIsSubscription(false);
         setIsDebt(false);
+        // Não reseta a carteira, mantém a que estava (conforto visual) ou a default
     }
   };
 
@@ -110,12 +131,30 @@ export function TransactionForm({ onSubmit, categories, assets, initialData, onC
 
         <MoneyInput value={amount} onChange={setAmount} />
 
+        {/* SELECT DE CARTEIRA (Com indicador visual se for padrão) */}
+        {wallets && wallets.length > 0 && (
+           <div className="relative">
+              <select 
+                value={selectedWallet} 
+                onChange={e => setSelectedWallet(e.target.value)}
+                className="w-full bg-gray-700 text-white rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-blue-500 border border-gray-600 text-sm appearance-none"
+                required={type !== 'investment'}
+              >
+                 <option value="" disabled>Selecione a Conta / Carteira</option>
+                 {wallets.map(w => (
+                   <option key={w.id} value={w.id}>
+                     {w.name} {w.isDefault ? '(Padrão)' : ''}
+                   </option>
+                 ))}
+              </select>
+               {/* Seta customizada só pra garantir UX */}
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                <TrendingUp size={14} className="rotate-90"/>
+              </div>
+           </div>
+        )}
+
         <div className="flex gap-2">
-            {/* CORREÇÃO AQUI:
-                1. w-40: Garante largura suficiente para a data.
-                2. [&::-webkit-calendar-picker-indicator]:hidden: Some com o ícone feio do navegador.
-                3. onClick={showPicker}: Garante que clicar no texto abre o calendário.
-            */}
             <div className="relative w-40 shrink-0">
                 <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none">
                     <Calendar size={16} />
@@ -124,7 +163,7 @@ export function TransactionForm({ onSubmit, categories, assets, initialData, onC
                     type="date"
                     value={date}
                     onChange={(e) => setDate(e.target.value)}
-                    onClick={(e) => e.target.showPicker && e.target.showPicker()} // Abre o calendário ao clicar
+                    onClick={(e) => e.target.showPicker && e.target.showPicker()}
                     className="w-full bg-gray-700 text-white rounded-lg p-3 pl-10 outline-none focus:ring-2 focus:ring-blue-500 text-sm h-full [&::-webkit-calendar-picker-indicator]:hidden cursor-pointer"
                     required
                 />
