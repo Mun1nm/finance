@@ -15,6 +15,9 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
   const [isSubscription, setIsSubscription] = useState(false);
   const [isDebt, setIsDebt] = useState(false);
   const [selectedWallet, setSelectedWallet] = useState("");
+  
+  // NOVO: Dia do vencimento (Padrão: dia atual)
+  const [dueDay, setDueDay] = useState(new Date().getDate());
 
   useEffect(() => {
     if (initialData) {
@@ -40,28 +43,29 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       setIsSubscription(false);
       setIsDebt(initialData.isDebt || false);
       setSelectedWallet(initialData.walletId || "");
+      setDueDay(new Date().getDate()); // Reset dia
 
     } else {
-      // MODO CRIAÇÃO (Novo Registro)
+      // MODO CRIAÇÃO
       setAmount("");
       setSelectedId("");
       setDescription("");
       setDate(today);
       setIsSubscription(false);
       setIsDebt(false);
+      setDueDay(new Date().getDate()); // Reset dia
       
-      // LÓGICA DA CARTEIRA PADRÃO
+      // Lógica da carteira padrão
       if (wallets && wallets.length > 0) {
           const defaultWallet = wallets.find(w => w.isDefault);
           if (defaultWallet) {
               setSelectedWallet(defaultWallet.id);
           } else {
-              // Se nenhuma for padrão, pega a primeira
               setSelectedWallet(wallets[0].id);
           }
       }
     }
-  }, [initialData, categories, assets, wallets]); // Recalcula se 'wallets' mudar (ex: marcou nova padrão)
+  }, [initialData, categories, assets, wallets]);
 
   const availableCategories = categories.filter(c => (c.type || 'expense') === type);
 
@@ -81,7 +85,9 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       date,
       isSubscription,
       isDebt,
-      walletId: selectedWallet
+      walletId: selectedWallet,
+      // Se for assinatura, envia o dia escolhido, senão null
+      dueDay: isSubscription ? dueDay : null 
     };
 
     if (type === 'investment') {
@@ -103,7 +109,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
         setDate(today);
         setIsSubscription(false);
         setIsDebt(false);
-        // Não reseta a carteira, mantém a que estava (conforto visual) ou a default
+        setDueDay(new Date().getDate());
     }
   };
 
@@ -131,7 +137,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
 
         <MoneyInput value={amount} onChange={setAmount} />
 
-        {/* SELECT DE CARTEIRA (Com indicador visual se for padrão) */}
+        {/* SELECT DE CARTEIRA */}
         {wallets && wallets.length > 0 && (
            <div className="relative">
               <select 
@@ -147,7 +153,6 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
                    </option>
                  ))}
               </select>
-               {/* Seta customizada só pra garantir UX */}
               <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
                 <TrendingUp size={14} className="rotate-90"/>
               </div>
@@ -206,11 +211,26 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
 
         {!initialData && (
           <div className="grid grid-cols-1 gap-2">
-            <div className="flex items-center gap-2 bg-gray-700/50 p-3 rounded-lg border border-gray-600">
+            <div className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${isSubscription ? 'bg-blue-600/20 border-blue-500' : 'bg-gray-700/50 border-gray-600'}`}>
               <input type="checkbox" id="subCheck" checked={isSubscription} onChange={(e) => { setIsSubscription(e.target.checked); if(e.target.checked) setIsDebt(false); }} className="w-5 h-5 rounded text-blue-600 bg-gray-700 border-gray-500 cursor-pointer" />
               <label htmlFor="subCheck" className="text-sm text-gray-300 flex items-center gap-2 cursor-pointer select-none w-full">
                 <RefreshCw size={14} /> Repetir mensalmente
               </label>
+              
+              {/* INPUT DO DIA DA ASSINATURA */}
+              {isSubscription && (
+                <div className="flex items-center gap-2 ml-auto">
+                    <span className="text-xs text-blue-300">Todo dia:</span>
+                    <input 
+                        type="number" 
+                        min="1" 
+                        max="31" 
+                        value={dueDay} 
+                        onChange={e => setDueDay(e.target.value)}
+                        className="w-12 bg-gray-900 border border-blue-500/50 rounded text-center text-white text-sm p-1 focus:ring-2 focus:ring-blue-500 outline-none"
+                    />
+                </div>
+              )}
             </div>
 
             {type === 'expense' && !isSubscription && (
