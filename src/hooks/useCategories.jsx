@@ -7,20 +7,25 @@ import {
   where, 
   onSnapshot, 
   deleteDoc,
-  updateDoc, // Importar updateDoc
+  updateDoc, 
   doc
 } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
 
 export function useCategories() {
-  const { currentUser } = useAuth();
+  const { currentUser, userProfile } = useAuth(); // Pega o perfil
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
 
   const categoriesRef = collection(db, "categories");
 
   useEffect(() => {
-    if (!currentUser) return;
+    // Só busca se estiver logado E autorizado
+    if (!currentUser || !userProfile?.isAuthorized) {
+        setCategories([]);
+        setLoading(false);
+        return;
+    }
 
     const q = query(categoriesRef, where("uid", "==", currentUser.uid));
     
@@ -31,12 +36,15 @@ export function useCategories() {
       }));
       setCategories(data.sort((a, b) => a.name.localeCompare(b.name)));
       setLoading(false);
+    }, (error) => {
+      console.log("Aguardando permissão de leitura...");
     });
 
     return unsubscribe;
-  }, [currentUser]);
+  }, [currentUser, userProfile]); // Adiciona userProfile na dependência
 
   const addCategory = async (name, macro, type) => {
+    if (!userProfile?.isAuthorized) return;
     await addDoc(categoriesRef, {
       uid: currentUser.uid,
       name,
@@ -45,17 +53,14 @@ export function useCategories() {
     });
   };
 
-  // NOVA FUNÇÃO
   const updateCategory = async (id, name, macro, type) => {
+    if (!userProfile?.isAuthorized) return;
     const docRef = doc(db, "categories", id);
-    await updateDoc(docRef, {
-      name,
-      macro,
-      type
-    });
+    await updateDoc(docRef, { name, macro, type });
   };
 
   const deleteCategory = async (id) => {
+    if (!userProfile?.isAuthorized) return;
     await deleteDoc(doc(db, "categories", id));
   };
 
