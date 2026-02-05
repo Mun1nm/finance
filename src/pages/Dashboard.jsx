@@ -5,7 +5,7 @@ import { useCategories } from "../hooks/useCategories";
 import { useSubscriptions } from "../hooks/useSubscriptions";
 import { useInvestments } from "../hooks/useInvestments"; 
 import { useWallets } from "../hooks/useWallets"; 
-import { LogOut, Settings, ChevronLeft, ChevronRight, BarChart3, PieChart, TrendingUp, Wallet, ArrowRightLeft, Plus, Star, RefreshCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, BarChart3, PieChart, Wallet, ArrowRightLeft, Plus, Star } from "lucide-react";
 import { Summary } from "../components/Summary";
 import { CategoryChart } from "../components/CategoryChart";
 import { ConfirmModal } from "../components/ConfirmModal";
@@ -14,8 +14,9 @@ import { TransactionForm } from "../components/TransactionForm";
 import { TransactionList } from "../components/TransactionList";
 import { useNavigate } from "react-router-dom";
 
+// Note que NÃO importamos Layout aqui, pois o App.jsx já cuida disso.
+
 export default function Dashboard() {
-  const { logout } = useAuth();
   const { transactions, addTransaction, deleteTransaction, updateTransaction, toggleDebtStatus, addTransfer } = useTransactions();
   const { categories } = useCategories();
   const { assets, addContribution } = useInvestments();
@@ -35,7 +36,6 @@ export default function Dashboard() {
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [newWalletName, setNewWalletName] = useState("");
 
-  // TRAVA DE SEGURANÇA: Evita processar assinaturas 2x no React Strict Mode
   const hasProcessedSubscriptions = useRef(false);
 
   useEffect(() => {
@@ -55,22 +55,14 @@ export default function Dashboard() {
            tDate.getFullYear() === currentDate.getFullYear();
   });
 
-  // CORREÇÃO: Saldo ignora lançamentos futuros
   const overallBalance = transactions.reduce((acc, t) => {
-    if (t.date && t.date.seconds * 1000 > new Date().getTime()) {
-        return acc;
-    }
-
-    if (t.type === 'income') {
-      return acc + t.amount;
-    } 
-    else if (t.type === 'expense') {
+    if (t.date && t.date.seconds * 1000 > new Date().getTime()) return acc;
+    if (t.type === 'income') return acc + t.amount;
+    if (t.type === 'expense') {
       if (t.isDebt && t.debtPaid) return acc;
       return acc - t.amount;
     } 
-    else if (t.type === 'investment') {
-      return acc - t.amount;
-    }
+    if (t.type === 'investment') return acc - t.amount;
     return acc;
   }, 0);
 
@@ -80,9 +72,7 @@ export default function Dashboard() {
       .filter(t => t.date && t.date.seconds * 1000 <= new Date().getTime())
       .reduce((acc, t) => {
          if (t.type === 'income') return acc + t.amount;
-         if (t.type === 'expense' || t.type === 'investment') {
-            return acc - t.amount;
-         }
+         if (t.type === 'expense' || t.type === 'investment') return acc - t.amount;
          return acc;
       }, 0);
     return { ...w, balance };
@@ -94,7 +84,6 @@ export default function Dashboard() {
 
     if (editingData) {
       await updateTransaction(editingData.id, amount, categoryName, macro, type, isDebt, description, date, walletId);
-
       if (editingData.subscriptionId) {
          try {
            await updateSubscription(editingData.subscriptionId, {
@@ -102,7 +91,7 @@ export default function Dashboard() {
               name: description.replace("Assinatura Mensal: ", ""), 
               walletId: walletId
            });
-           setNotification({ msg: "Registro e Assinatura futura atualizados!", type: "success" });
+           setNotification({ msg: "Registro e Assinatura atualizados!", type: "success" });
          } catch (error) {
            setNotification({ msg: "Registro atualizado!", type: "warning" });
          }
@@ -111,26 +100,16 @@ export default function Dashboard() {
       }
       setEditingData(null);
     } else {
-      // MODO CRIAÇÃO - Lógica de Data
       const shouldProcessNow = !isSubscription || (isSubscription && dueDay <= todayDay);
-
       if (shouldProcessNow) {
-          if (type === 'investment' && assetId) {
-             await addContribution(assetId, amount);
-          }
+          if (type === 'investment' && assetId) await addContribution(assetId, amount);
           await addTransaction(amount, categoryName, macro, type, isDebt, description, date, walletId);
       }
-      
       if (isSubscription) {
         await createSubscription(amount, categoryName, macro, categoryName, type, dueDay, walletId, shouldProcessNow);
-        if (shouldProcessNow) {
-            setNotification({ msg: `Assinatura criada e debitada (Dia ${dueDay})!`, type: "success" });
-        } else {
-            setNotification({ msg: `Agendado! Primeira cobrança dia ${dueDay}.`, type: "info" });
-        }
+        setNotification({ msg: shouldProcessNow ? `Assinatura criada e debitada!` : `Agendado para dia ${dueDay}.`, type: "success" });
       } else {
-        const msg = type === 'investment' ? "Aporte realizado e registrado!" : "Salvo com sucesso!";
-        setNotification({ msg, type: "success" });
+        setNotification({ msg: "Salvo com sucesso!", type: "success" });
       }
     }
   };
@@ -139,15 +118,7 @@ export default function Dashboard() {
     e.preventDefault();
     const fromWallet = wallets.find(w => w.id === transferData.from);
     const toWallet = wallets.find(w => w.id === transferData.to);
-    
-    await addTransfer(
-        transferData.amount, 
-        transferData.from, 
-        transferData.to, 
-        transferData.date, 
-        fromWallet.name, 
-        toWallet.name
-    );
+    await addTransfer(transferData.amount, transferData.from, transferData.to, transferData.date, fromWallet.name, toWallet.name);
     setIsTransferModalOpen(false);
     setTransferData({ from: '', to: '', amount: '', date: new Date().toISOString().split('T')[0] });
     setNotification({ msg: "Transferência realizada!", type: "success" });
@@ -175,33 +146,18 @@ export default function Dashboard() {
   const nextMonth = () => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)));
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 pb-24">
+    <>
       <Notification message={notification?.msg} type={notification?.type} onClose={() => setNotification(null)} />
       <ConfirmModal isOpen={deleteModal.isOpen} onClose={() => setDeleteModal({ isOpen: false, id: null })} onConfirm={handleDelete} title="Excluir" message="Confirma a exclusão?" />
 
-      {/* HEADER */}
-      <header className="p-4 flex justify-between items-center bg-gray-800 border-b border-gray-700 sticky top-0 z-50 shadow-md">
-        <h1 className="font-bold text-xl text-white tracking-tight">Finance</h1>
-        <div className="flex gap-2">
-          <button onClick={() => navigate("/subscriptions")} className="p-2 text-gray-400 hover:text-green-400" title="Gerenciar Assinaturas">
-            <RefreshCw size={20} />
-          </button>
-          <button onClick={() => navigate("/investments")} className="p-2 text-gray-400 hover:text-purple-400" title="Meus Investimentos">
-            <TrendingUp size={20} />
-          </button>
-          <button onClick={() => navigate("/categories")} className="p-2 text-gray-400 hover:text-blue-400"><Settings size={20} /></button>
-          <button onClick={logout} className="p-2 text-gray-400 hover:text-white"><LogOut size={20} /></button>
-        </div>
-      </header>
-
-      {/* NAV MÊS */}
-      <div className="flex items-center justify-center gap-4 py-4 bg-gray-900/95 backdrop-blur-md sticky top-[60px] z-40 border-b border-gray-800 shadow-sm">
-        <button onClick={prevMonth} className="p-1 hover:bg-gray-800 rounded"><ChevronLeft /></button>
+      {/* NAV MÊS - Mantive apenas a navegação de mês, pois o Header agora é global */}
+      <div className="flex items-center justify-center gap-4 mb-6">
+        <button onClick={prevMonth} className="p-2 hover:bg-gray-800 rounded-full transition-colors"><ChevronLeft /></button>
         <span className="font-bold text-lg capitalize">{currentDate.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}</span>
-        <button onClick={nextMonth} className="p-1 hover:bg-gray-800 rounded"><ChevronRight /></button>
+        <button onClick={nextMonth} className="p-2 hover:bg-gray-800 rounded-full transition-colors"><ChevronRight /></button>
       </div>
 
-      <main className="max-w-6xl mx-auto p-4 space-y-6">
+      <div className="space-y-6">
         <Summary 
             transactions={filteredTransactions} 
             assets={assets}                     
@@ -228,18 +184,10 @@ export default function Dashboard() {
               {wallets.length === 0 && <p className="text-sm text-gray-500">Nenhuma conta cadastrada.</p>}
               
               {walletBalances.map(w => (
-                 <div 
-                    key={w.id} 
-                    className={`min-w-[140px] p-3 rounded-lg border flex flex-col relative group transition-all ${w.isDefault ? 'bg-blue-900/20 border-blue-500/50' : 'bg-gray-700/30 border-gray-600 hover:border-gray-500'}`}
-                 >
-                     <button 
-                        onClick={() => setAsDefault(w.id)}
-                        className={`absolute top-2 right-2 p-1 rounded-full transition-colors ${w.isDefault ? 'text-yellow-400' : 'text-gray-600 hover:text-yellow-200'}`}
-                        title={w.isDefault ? "Conta Padrão" : "Definir como Padrão"}
-                     >
+                 <div key={w.id} className={`min-w-[140px] p-3 rounded-lg border flex flex-col relative group transition-all ${w.isDefault ? 'bg-blue-900/20 border-blue-500/50' : 'bg-gray-700/30 border-gray-600 hover:border-gray-500'}`}>
+                     <button onClick={() => setAsDefault(w.id)} className={`absolute top-2 right-2 p-1 rounded-full transition-colors ${w.isDefault ? 'text-yellow-400' : 'text-gray-600 hover:text-yellow-200'}`}>
                         <Star size={12} fill={w.isDefault ? "currentColor" : "none"} />
                      </button>
-
                     <span className="text-xs text-gray-400 truncate pr-4">{w.name}</span>
                     <span className={`font-bold text-sm ${w.balance >= 0 ? 'text-white' : 'text-red-400'}`}>
                        R$ {w.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
@@ -250,7 +198,8 @@ export default function Dashboard() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          <div className="lg:col-span-5 relative lg:sticky lg:top-40 z-0">
+          {/* FORMULÁRIO FIXO - PADDING REDUZIDO (top-24) */}
+          <div className="lg:col-span-5 relative lg:sticky lg:top-24 z-0">
             <TransactionForm 
               onSubmit={handleFormSubmit}
               categories={categories}
@@ -282,9 +231,9 @@ export default function Dashboard() {
             />
           </div>
         </div>
-      </main>
+      </div>
 
-      {/* MODAIS (Transfer e Wallet) */}
+      {/* MODAIS (Transfer e Wallet) - Mantidos iguais */}
       {isTransferModalOpen && (
          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
            <div className="bg-gray-800 p-6 rounded-2xl w-full max-w-sm border border-gray-700 animate-scale-up">
@@ -331,6 +280,6 @@ export default function Dashboard() {
            </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
