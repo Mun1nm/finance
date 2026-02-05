@@ -1,17 +1,7 @@
 import { useState, useEffect } from "react";
 import { db } from "../services/firebase";
 import { 
-  collection, 
-  addDoc, 
-  query, 
-  where, 
-  orderBy, 
-  onSnapshot, 
-  serverTimestamp,
-  deleteDoc,
-  updateDoc,
-  doc,
-  writeBatch // Importante para transferências atômicas
+  collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp, deleteDoc, updateDoc, doc, writeBatch 
 } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -56,8 +46,7 @@ export function useTransactions() {
     return new Date(year, month - 1, day, now.getHours(), now.getMinutes());
   };
 
-  // 1. ATUALIZADO: Aceita walletId
-  const addTransaction = async (amount, category, macro, type = 'expense', isDebt = false, description = "", date = null, walletId = null) => {
+  const addTransaction = async (amount, category, macro, type = 'expense', isDebt = false, description = "", date = null, walletId = null, subscriptionId = null) => {
     if (!userProfile?.isAuthorized) return;
     if (!amount) return;
     
@@ -71,11 +60,11 @@ export function useTransactions() {
       isDebt,
       debtPaid: false,
       date: parseDate(date),
-      walletId: walletId || null // Salva a carteira
+      walletId: walletId || null,
+      subscriptionId: subscriptionId || null // Vincula à assinatura
     });
   };
 
-  // 2. NOVA FUNÇÃO: Transferência entre Carteiras
   const addTransfer = async (amount, fromWalletId, toWalletId, date = null, fromName, toName) => {
     if (!userProfile?.isAuthorized) return;
     
@@ -83,7 +72,6 @@ export function useTransactions() {
     const parsedAmount = parseFloat(amount);
     const transactionDate = parseDate(date);
 
-    // Saída da Origem
     const docRef1 = doc(collection(db, "transactions"));
     batch.set(docRef1, {
       uid: currentUser.uid,
@@ -98,7 +86,6 @@ export function useTransactions() {
       walletId: fromWalletId
     });
 
-    // Entrada no Destino
     const docRef2 = doc(collection(db, "transactions"));
     batch.set(docRef2, {
       uid: currentUser.uid,
@@ -122,7 +109,7 @@ export function useTransactions() {
     await deleteDoc(docRef);
   };
 
-  const updateTransaction = async (id, amount, category, macro, type, isDebt, description = "", date = null) => {
+  const updateTransaction = async (id, amount, category, macro, type, isDebt, description = "", date = null, walletId = null) => {
     if (!userProfile?.isAuthorized) return;
     const docRef = doc(db, "transactions", id);
     
@@ -132,7 +119,8 @@ export function useTransactions() {
       macro,
       type,
       isDebt,
-      description
+      description,
+      walletId: walletId || null
     };
 
     if (date) {
@@ -154,7 +142,7 @@ export function useTransactions() {
     transactions, 
     loading, 
     addTransaction, 
-    addTransfer, // Nova exportação
+    addTransfer, 
     deleteTransaction, 
     updateTransaction, 
     toggleDebtStatus 

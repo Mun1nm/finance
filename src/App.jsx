@@ -4,7 +4,8 @@ import Login from "./pages/Login";
 import Dashboard from "./pages/Dashboard";
 import CategoriesPage from "./pages/CategoriesPage";
 import InvestmentsPage from "./pages/InvestmentsPage";
-import Unauthorized from "./pages/Unauthorized"; // Importe a tela nova
+import Unauthorized from "./pages/Unauthorized";
+import SubscriptionsPage from "./pages/SubscriptionsPage";
 
 function PrivateRoute({ children }) {
   const { currentUser, userProfile, loading } = useAuth();
@@ -33,6 +34,7 @@ export default function App() {
           <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
           <Route path="/categories" element={<PrivateRoute><CategoriesPage /></PrivateRoute>} />
           <Route path="/investments" element={<PrivateRoute><InvestmentsPage /></PrivateRoute>} />
+          <Route path="/subscriptions" element={<PrivateRoute><SubscriptionsPage /></PrivateRoute>} />
         </Routes>
       </AuthProvider>
     </BrowserRouter>
