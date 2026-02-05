@@ -1,53 +1,55 @@
-import { ArrowUpCircle, ArrowDownCircle, Wallet, TrendingUp, Landmark } from "lucide-react";
+import { ArrowUpCircle, ArrowDownCircle, Wallet, TrendingUp } from "lucide-react";
 
-export function Summary({ transactions, assets = [] }) { // Recebe assets agora
+// Adicionei a prop 'totalBalance'
+export function Summary({ transactions, assets = [], totalBalance }) { 
+
+  // --- CÁLCULOS MENSAIS (Para mostrar o fluxo do mês selecionado) ---
+  
   const income = transactions
     .filter((t) => t.type === "income")
     .reduce((acc, t) => acc + t.amount, 0);
 
-  // Calcula despesas (ignorando dívidas pagas que anulam o efeito)
+  // Despesas do mês (ignorando as que foram reembolsadas este mês)
   const expense = transactions
     .filter((t) => t.type === "expense")
     .filter((t) => !(t.isDebt && t.debtPaid))
     .reduce((acc, t) => acc + t.amount, 0);
 
-  // Aportes do MÊS (Dinheiro que saiu do caixa)
+  // Aportes do mês
   const investmentsFlow = transactions
     .filter((t) => t.type === "investment")
     .reduce((acc, t) => acc + t.amount, 0);
 
-  // Saldo Disponível (Caixa)
-  const balance = income - expense - investmentsFlow;
+  // --- CÁLCULOS DE PATRIMÔNIO E DÍVIDAS ---
 
   const pendingDebt = transactions
     .filter((t) => t.isDebt && !t.debtPaid)
     .reduce((acc, t) => acc + t.amount, 0);
 
-  // NOVO: Cálculo do Patrimônio Total (Baseado nos Ativos atualizados)
   const totalNetWorth = assets.reduce((acc, a) => acc + (a.currentValue || 0), 0);
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       
-      {/* 1. Entradas */}
+      {/* 1. Entradas (Mês) */}
       <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 flex items-center justify-between lg:flex-col lg:justify-center">
-        <span className="text-gray-400 text-xs uppercase font-bold lg:mb-1">Entradas</span>
+        <span className="text-gray-400 text-xs uppercase font-bold lg:mb-1">Entradas (Mês)</span>
         <div className="flex items-center gap-2 text-green-400">
           <ArrowUpCircle size={24} className="lg:w-6 lg:h-6" />
           <span className="font-bold text-xl lg:text-2xl">R$ {income.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
         </div>
       </div>
 
-      {/* 2. Saídas */}
+      {/* 2. Saídas (Mês) */}
       <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 flex items-center justify-between lg:flex-col lg:justify-center">
-        <span className="text-gray-400 text-xs uppercase font-bold lg:mb-1">Saídas</span>
+        <span className="text-gray-400 text-xs uppercase font-bold lg:mb-1">Saídas (Mês)</span>
         <div className="flex items-center gap-2 text-red-400">
           <ArrowDownCircle size={24} className="lg:w-6 lg:h-6" />
           <span className="font-bold text-xl lg:text-2xl">R$ {expense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
         </div>
       </div>
 
-      {/* 3. Investimentos (HÍBRIDO: Fluxo do Mês + Patrimônio Total) */}
+      {/* 3. Investimentos */}
       <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 flex items-center justify-between lg:flex-col lg:justify-center relative overflow-hidden">
         <div className="z-10 flex flex-col items-start lg:items-center">
             <span className="text-purple-400 text-xs uppercase font-bold lg:mb-1">Aportes (Mês)</span>
@@ -56,22 +58,21 @@ export function Summary({ transactions, assets = [] }) { // Recebe assets agora
             <span className="font-bold text-xl lg:text-2xl">R$ {investmentsFlow.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
             </div>
             
-            {/* Exibe o Total Acumulado logo abaixo */}
             <div className="mt-1 lg:mt-2 pt-2 border-t border-purple-500/30 w-full flex flex-col lg:items-center">
                 <span className="text-[10px] text-gray-400 uppercase">Patrimônio Total</span>
                 <span className="text-sm font-bold text-white">R$ {totalNetWorth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
             </div>
         </div>
-        {/* Decoração de fundo */}
         <div className="absolute -right-6 -top-6 w-20 h-20 bg-purple-500/10 rounded-full blur-2xl"></div>
       </div>
 
-      {/* 4. Saldo em Conta */}
-      <div className={`bg-gray-800 p-4 rounded-xl border flex flex-col items-center justify-center relative ${balance < 0 ? 'border-red-500/50' : 'border-blue-500/50'}`}>
-        <span className="text-gray-400 text-xs uppercase font-bold mb-1">Saldo Disponível (Caixa)</span>
+      {/* 4. SALDO EM CONTA (TOTAL ACUMULADO) */}
+      {/* Aqui usamos a prop totalBalance que veio da Dashboard */}
+      <div className={`bg-gray-800 p-4 rounded-xl border flex flex-col items-center justify-center relative ${totalBalance < 0 ? 'border-red-500/50' : 'border-blue-500/50'}`}>
+        <span className="text-gray-400 text-xs uppercase font-bold mb-1">Saldo em Caixa (Total)</span>
         <div className="flex items-center gap-2 text-white">
           <Wallet size={24} className="lg:w-6 lg:h-6" />
-          <span className="font-bold text-xl lg:text-2xl">R$ {balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+          <span className="font-bold text-xl lg:text-2xl">R$ {totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
         </div>
         
         {pendingDebt > 0 && (
