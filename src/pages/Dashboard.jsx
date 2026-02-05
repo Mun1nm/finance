@@ -41,6 +41,21 @@ export default function Dashboard() {
            tDate.getFullYear() === currentDate.getFullYear();
   });
 
+  const overallBalance = transactions.reduce((acc, t) => {
+    if (t.type === 'income') {
+      return acc + t.amount;
+    } 
+    else if (t.type === 'expense') {
+      // Se for dívida paga (reembolsada), a gente ignora a saída (ou considera que o dinheiro voltou)
+      if (t.isDebt && t.debtPaid) return acc;
+      return acc - t.amount;
+    } 
+    else if (t.type === 'investment') {
+      return acc - t.amount;
+    }
+    return acc;
+  }, 0);
+
   const handleFormSubmit = async (formData) => {
     // Adicione 'date' na extração
     const { amount, categoryName, macro, type, isSubscription, isDebt, description, assetId, date } = formData;
@@ -105,7 +120,11 @@ export default function Dashboard() {
       </div>
 
       <main className="max-w-6xl mx-auto p-4 space-y-6">
-        <Summary transactions={filteredTransactions} assets={assets} />
+        <Summary 
+            transactions={filteredTransactions} // Para calcular entradas/saídas DO MÊS
+            assets={assets}                     // Para calcular patrimônio
+            totalBalance={overallBalance}       // O Saldo Real da Conta (Acumulado)
+        />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
