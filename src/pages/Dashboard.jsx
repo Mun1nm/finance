@@ -99,18 +99,10 @@ export default function Dashboard() {
       setEditingData(null);
     } else {
       const shouldProcessNow = !isSubscription || (isSubscription && dueDay <= todayDay);
-      
       if (shouldProcessNow) {
-          if (type === 'investment' && assetId) {
-             await addContribution(assetId, amount);
-          }
-          
-          // --- CORREÇÃO AQUI ---
-          // Antes: await addTransaction(..., walletId); -> Faltava assetId
-          // Agora: Passamos null (subscriptionId) e assetId no final
+          if (type === 'investment' && assetId) await addContribution(assetId, amount);
           await addTransaction(amount, categoryName, macro, type, isDebt, description, date, walletId, null, assetId);
       }
-      
       if (isSubscription) {
         await createSubscription(amount, categoryName, macro, categoryName, type, dueDay, walletId, shouldProcessNow);
         setNotification({ msg: shouldProcessNow ? `Assinatura criada e debitada!` : `Agendado para dia ${dueDay}.`, type: "success" });
@@ -207,7 +199,16 @@ export default function Dashboard() {
                 </div>
                 <CategoryChart transactions={filteredTransactions} mode={chartMode} />
             </div>
-            <TransactionList transactions={filteredTransactions} onEdit={setEditingData} onDelete={(id) => setDeleteModal({ isOpen: true, id })} onToggleDebt={toggleDebtStatus} editingId={editingData?.id} />
+            
+            {/* AQUI ESTÁ A ATUALIZAÇÃO: wallets={wallets} */}
+            <TransactionList 
+                transactions={filteredTransactions} 
+                wallets={wallets} 
+                onEdit={setEditingData} 
+                onDelete={(id) => setDeleteModal({ isOpen: true, id })} 
+                onToggleDebt={toggleDebtStatus} 
+                editingId={editingData?.id} 
+            />
           </div>
         </div>
       </div>

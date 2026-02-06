@@ -1,11 +1,11 @@
-import { Pencil, Trash2, User, Check, Clock, Layers, Calendar, Shapes, ChevronDown, ChevronUp } from "lucide-react";
+import { Pencil, Trash2, User, Check, Clock, Calendar, Shapes, ChevronDown, ChevronUp, Wallet, TrendingUp, TrendingDown } from "lucide-react";
 import { useState, useMemo } from "react";
 
-export function TransactionList({ transactions, onEdit, onDelete, onToggleDebt, editingId }) {
+export function TransactionList({ transactions, wallets = [], onEdit, onDelete, onToggleDebt, editingId }) {
   
   // 1. Estados
   const [viewMode, setViewMode] = useState("all"); // 'all' ou 'debts'
-  const [groupBy, setGroupBy] = useState("date");  // 'date' ou 'macro'
+  const [groupBy, setGroupBy] = useState("date");  // 'date', 'macro' ou 'wallet'
   const [expandedGroups, setExpandedGroups] = useState({});
 
   // Contadores
@@ -36,7 +36,7 @@ export function TransactionList({ transactions, onEdit, onDelete, onToggleDebt, 
     });
   };
 
-  // Função para agrupar uma lista de transações por macro
+  // Agrupa por Macro Categoria
   const groupTransactionsByMacro = (list) => {
     const groups = list.reduce((acc, t) => {
       const macro = t.macro || "Outros";
@@ -47,6 +47,33 @@ export function TransactionList({ transactions, onEdit, onDelete, onToggleDebt, 
       acc[macro].total += t.amount;
       return acc;
     }, {});
+    // Ordena pelo maior valor total
+    return Object.values(groups).sort((a, b) => b.total - a.total);
+  };
+
+  // Agrupa por Carteira
+  const groupTransactionsByWallet = (list) => {
+    const groups = list.reduce((acc, t) => {
+      const wallet = wallets.find(w => w.id === t.walletId);
+      const walletName = wallet ? wallet.name : "Sem Carteira";
+      
+      if (!acc[walletName]) {
+        acc[walletName] = { name: walletName, items: [], total: 0 }; // Total será o Saldo (Entrada - Saída)
+      }
+      
+      acc[walletName].items.push(t);
+      
+      // Calcula saldo do grupo: Entrada soma, Saída/Invest subtrai
+      if (t.type === 'income') {
+        acc[walletName].total += t.amount;
+      } else {
+        acc[walletName].total -= t.amount;
+      }
+      
+      return acc;
+    }, {});
+    
+    // Ordena alfabeticamente ou por saldo? Vamos por saldo (maior positivo primeiro)
     return Object.values(groups).sort((a, b) => b.total - a.total);
   };
 
@@ -57,17 +84,20 @@ export function TransactionList({ transactions, onEdit, onDelete, onToggleDebt, 
     let bgClass = 'bg-red-500/10';
     let dotClass = 'bg-red-500';
     let sign = '-';
+    let Icon = TrendingDown;
 
     if (t.type === 'income') {
       colorClass = 'text-green-400';
       bgClass = 'bg-green-500/10';
       dotClass = 'bg-green-500';
       sign = '+';
+      Icon = TrendingUp;
     } else if (t.type === 'investment') {
       colorClass = 'text-purple-400';
       bgClass = 'bg-purple-500/10';
       dotClass = 'bg-purple-500';
       sign = '';
+      Icon = TrendingUp;
     }
 
     const isDebtItem = t.isDebt === true;
@@ -77,7 +107,7 @@ export function TransactionList({ transactions, onEdit, onDelete, onToggleDebt, 
       <div key={t.id} className={`flex justify-between items-center bg-gray-800 p-4 rounded-xl border transition-colors group ${editingId === t.id ? 'border-blue-500 bg-blue-500/5' : 'border-gray-700 hover:bg-gray-750'}`}>
         <div className="flex items-center gap-3">
           <div className={`p-2 rounded-full ${bgClass} ${colorClass}`}>
-            <div className={`w-2 h-2 rounded-full ${dotClass}`}></div>
+             <Icon size={16} />
           </div>
           <div className="flex flex-col">
             <div className="flex items-center gap-2">
@@ -93,11 +123,11 @@ export function TransactionList({ transactions, onEdit, onDelete, onToggleDebt, 
             {t.description && (
               <p className="text-xs text-gray-300 italic mb-0.5 max-w-[150px] sm:max-w-[200px] truncate">{t.description}</p>
             )}
-            <p className="text-xs text-gray-500">
-              {groupBy === 'macro' 
-                ? new Date(t.date?.seconds * 1000).toLocaleDateString('pt-BR')
-                : `${t.macro} • ${new Date(t.date?.seconds * 1000).toLocaleDateString('pt-BR')}`
-              }
+            <p className="text-xs text-gray-500 flex items-center gap-1">
+              {groupBy !== 'wallet' && t.walletId && (
+                 <span className="flex items-center gap-0.5 mr-2 text-gray-400"><Wallet size={10}/> {wallets.find(w => w.id === t.walletId)?.name || 'Carteira'}</span>
+              )}
+              {new Date(t.date?.seconds * 1000).toLocaleDateString('pt-BR')}
             </p>
           </div>
         </div>
@@ -130,20 +160,30 @@ export function TransactionList({ transactions, onEdit, onDelete, onToggleDebt, 
       return <div className="space-y-3">{list.map(renderCard)}</div>;
     }
 
-    // Modo Macro: Agrupa
-    const groups = groupTransactionsByMacro(list);
+    let groups = [];
+    if (groupBy === 'macro') {
+      groups = groupTransactionsByMacro(list);
+    } else if (groupBy === 'wallet') {
+      groups = groupTransactionsByWallet(list);
+    }
     
     return (
       <div className="space-y-3">
         {groups.map((group) => {
-          // Chave única composta para não colidir IDs entre seções
           const uniqueGroupKey = `${prefixKey}-${group.name}`;
-          const isExpanded = expandedGroups[uniqueGroupKey] !== false; // Default Open
+          const isExpanded = expandedGroups[uniqueGroupKey] !== false; 
 
+          // Lógica de Cor do Cabeçalho
           let headerColor = "text-gray-300";
-          if (group.type === 'expense') headerColor = "text-red-400";
-          if (group.type === 'income') headerColor = "text-green-400";
-          if (group.type === 'investment') headerColor = "text-purple-400";
+          
+          if (groupBy === 'macro') {
+             if (group.type === 'expense') headerColor = "text-red-400";
+             if (group.type === 'income') headerColor = "text-green-400";
+             if (group.type === 'investment') headerColor = "text-purple-400";
+          } else if (groupBy === 'wallet') {
+             // Se for wallet, cor baseada no saldo (positivo/negativo)
+             headerColor = group.total >= 0 ? "text-green-400" : "text-red-400";
+          }
 
           return (
             <div key={uniqueGroupKey} className="bg-gray-800/50 border border-gray-700 rounded-xl overflow-hidden">
@@ -153,7 +193,7 @@ export function TransactionList({ transactions, onEdit, onDelete, onToggleDebt, 
               >
                 <div className="flex items-center gap-3">
                   <span className="bg-gray-700 p-1.5 rounded-lg text-gray-300">
-                    <Shapes size={16} />
+                    {groupBy === 'macro' ? <Shapes size={16} /> : <Wallet size={16} />}
                   </span>
                   <div className="text-left">
                     <p className="font-bold text-sm text-white">{group.name}</p>
@@ -162,7 +202,9 @@ export function TransactionList({ transactions, onEdit, onDelete, onToggleDebt, 
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`font-bold text-sm ${headerColor}`}>
-                    R$ {group.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    {/* Para Macro mostramos apenas o valor absoluto, para Wallet mostramos saldo assinado */}
+                    {groupBy === 'wallet' && group.total > 0 ? '+ ' : ''}
+                    R$ {Math.abs(group.total).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </span>
                   {isExpanded ? <ChevronUp size={16} className="text-gray-500"/> : <ChevronDown size={16} className="text-gray-500"/>}
                 </div>
@@ -185,7 +227,7 @@ export function TransactionList({ transactions, onEdit, onDelete, onToggleDebt, 
       {/* BARRA DE CONTROLE */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         
-        {/* Abas */}
+        {/* Abas (Geral / Reembolsos) */}
         <div className="flex bg-gray-800 p-1 rounded-lg border border-gray-700 w-fit">
           <button 
             onClick={() => setViewMode("all")}
@@ -201,26 +243,32 @@ export function TransactionList({ transactions, onEdit, onDelete, onToggleDebt, 
           </button>
         </div>
 
-        {/* Agrupamento (Agora disponível em AMBAS as abas) */}
+        {/* Agrupamento */}
         <div className="flex items-center gap-2 bg-gray-800 p-1 rounded-lg border border-gray-700 w-fit self-end sm:self-auto">
           <span className="text-[10px] text-gray-500 uppercase font-bold pl-2 hidden sm:block">Agrupar:</span>
+          
           <button onClick={() => setGroupBy("date")} title="Por Data" className={`p-1.5 rounded-md transition-all ${groupBy === 'date' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/50' : 'text-gray-400 hover:bg-gray-700'}`}>
             <Calendar size={16} />
           </button>
-          <button onClick={() => setGroupBy("macro")} title="Por Macro Categoria" className={`p-1.5 rounded-md transition-all ${groupBy === 'macro' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/50' : 'text-gray-400 hover:bg-gray-700'}`}>
+          
+          <button onClick={() => setGroupBy("macro")} title="Por Categoria" className={`p-1.5 rounded-md transition-all ${groupBy === 'macro' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/50' : 'text-gray-400 hover:bg-gray-700'}`}>
             <Shapes size={16} />
+          </button>
+
+          <button onClick={() => setGroupBy("wallet")} title="Por Carteira" className={`p-1.5 rounded-md transition-all ${groupBy === 'wallet' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/50' : 'text-gray-400 hover:bg-gray-700'}`}>
+            <Wallet size={16} />
           </button>
         </div>
       </div>
       
       {/* --- CONTEÚDO --- */}
 
-      {/* MODO GERAL (Lista única) */}
+      {/* MODO GERAL */}
       {viewMode === 'all' && (
         renderListOrGroups(filteredData, "all")
       )}
 
-      {/* MODO REEMBOLSOS (Lista Dividida + Agrupamento Interno) */}
+      {/* MODO REEMBOLSOS (Mantido intacto, agora suporta agrupamento também) */}
       {viewMode === "debts" && (
         <div className="space-y-6">
            {(() => {
@@ -236,7 +284,7 @@ export function TransactionList({ transactions, onEdit, onDelete, onToggleDebt, 
                     </h4>
                     {pendingDebts.length === 0 
                       ? <p className="text-gray-600 text-sm italic">Nenhuma pendência.</p> 
-                      : renderListOrGroups(pendingDebts, "pending") // <--- Agrupa aqui dentro!
+                      : renderListOrGroups(pendingDebts, "pending")
                     }
                   </div>
 
