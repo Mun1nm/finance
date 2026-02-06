@@ -1,16 +1,7 @@
 import { useState, useEffect } from "react";
 import { db } from "../services/firebase";
 import { 
-  collection, 
-  addDoc, 
-  query, 
-  where, 
-  onSnapshot, 
-  updateDoc,
-  deleteDoc, 
-  doc,
-  serverTimestamp,
-  arrayUnion 
+  collection, addDoc, query, where, onSnapshot, doc, updateDoc, deleteDoc, getDoc, increment 
 } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -37,69 +28,88 @@ export function useInvestments() {
       }));
       setAssets(data);
       setLoading(false);
-    }, (error) => {
-      console.log("Aguardando permissão de leitura...");
     });
 
     return unsubscribe;
   }, [currentUser, userProfile]);
 
-  const addAsset = async (name, type, initialValue = 0) => {
+  // ATUALIZADO: Agora retorna o resultado do addDoc (que contém o ID)
+  const addAsset = async (name, type, initialAmount) => {
     if (!userProfile?.isAuthorized) return;
-    await addDoc(assetsRef, {
+    return await addDoc(assetsRef, {
       uid: currentUser.uid,
       name,
       type,
-      investedAmount: parseFloat(initialValue),
-      currentValue: parseFloat(initialValue),
-      history: [
-        { date: new Date().toISOString(), value: parseFloat(initialValue), type: 'initial' }
-      ],
-      lastUpdate: serverTimestamp()
+      investedAmount: parseFloat(initialAmount),
+      currentValue: parseFloat(initialAmount),
+      createdAt: new Date()
     });
   };
 
-  const updateBalance = async (id, newValue) => {
+  const updateBalance = async (id, newBalance) => {
     if (!userProfile?.isAuthorized) return;
     const assetRef = doc(db, "assets", id);
     await updateDoc(assetRef, {
-      currentValue: parseFloat(newValue),
-      lastUpdate: serverTimestamp(),
-      history: arrayUnion({
-        date: new Date().toISOString(),
-        value: parseFloat(newValue),
-        type: 'update'
-      })
+      currentValue: parseFloat(newBalance)
     });
   };
 
   const addContribution = async (id, amount) => {
     if (!userProfile?.isAuthorized) return;
-    const asset = assets.find(a => a.id === id);
-    if (!asset) return;
-
-    const newInvested = asset.investedAmount + parseFloat(amount);
-    const newCurrent = asset.currentValue + parseFloat(amount);
-
     const assetRef = doc(db, "assets", id);
     await updateDoc(assetRef, {
-      investedAmount: newInvested,
-      currentValue: newCurrent,
-      lastUpdate: serverTimestamp(),
-      history: arrayUnion({
-        date: new Date().toISOString(),
-        value: newCurrent,
-        amountAdded: parseFloat(amount),
-        type: 'contribution'
-      })
+      investedAmount: increment(parseFloat(amount)),
+      currentValue: increment(parseFloat(amount))
     });
+  };
+
+  const removeContribution = async (id, amount) => {
+    if (!userProfile?.isAuthorized) return;
+    const assetRef = doc(db, "assets", id);
+    const assetSnap = await getDoc(assetRef);
+    
+    if (assetSnap.exists()) {
+        const data = assetSnap.data();
+        const newInvested = (data.investedAmount || 0) - parseFloat(amount);
+        const newCurrent = (data.currentValue || 0) - parseFloat(amount);
+
+        if (newCurrent <= 0.01) { 
+            await deleteDoc(assetRef);
+        } else {
+            await updateDoc(assetRef, {
+                investedAmount: newInvested > 0 ? newInvested : 0,
+                currentValue: newCurrent
+            });
+        }
+    }
+  };
+
+  const processWithdrawal = async (id, grossAmount, isFullWithdrawal) => {
+    if (!userProfile?.isAuthorized) return;
+    const assetRef = doc(db, "assets", id);
+
+    if (isFullWithdrawal) {
+        await deleteDoc(assetRef);
+    } else {
+        await updateDoc(assetRef, {
+            currentValue: increment(-parseFloat(grossAmount))
+        });
+    }
   };
 
   const deleteAsset = async (id) => {
     if (!userProfile?.isAuthorized) return;
-    const assetRef = doc(db, "assets", id);
-    await deleteDoc(assetRef);
+    await deleteDoc(doc(db, "assets", id));
   };
 
-  return { assets, loading, addAsset, updateBalance, addContribution, deleteAsset };
+  return { 
+    assets, 
+    loading, 
+    addAsset, 
+    updateBalance, 
+    addContribution, 
+    removeContribution, 
+    processWithdrawal,
+    deleteAsset 
+  };
 }

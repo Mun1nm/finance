@@ -1,7 +1,18 @@
 import { useState, useEffect } from "react";
 import { db } from "../services/firebase";
 import { 
-  collection, addDoc, query, where, orderBy, onSnapshot, serverTimestamp, deleteDoc, updateDoc, doc, writeBatch 
+  collection, 
+  addDoc, 
+  query, 
+  where, 
+  orderBy, 
+  onSnapshot, 
+  serverTimestamp,
+  deleteDoc,
+  updateDoc,
+  doc,
+  writeBatch,
+  getDocs 
 } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -46,7 +57,7 @@ export function useTransactions() {
     return new Date(year, month - 1, day, now.getHours(), now.getMinutes());
   };
 
-  const addTransaction = async (amount, category, macro, type = 'expense', isDebt = false, description = "", date = null, walletId = null, subscriptionId = null) => {
+  const addTransaction = async (amount, category, macro, type = 'expense', isDebt = false, description = "", date = null, walletId = null, subscriptionId = null, assetId = null) => {
     if (!userProfile?.isAuthorized) return;
     if (!amount) return;
     
@@ -61,7 +72,8 @@ export function useTransactions() {
       debtPaid: false,
       date: parseDate(date),
       walletId: walletId || null,
-      subscriptionId: subscriptionId || null // Vincula à assinatura
+      subscriptionId: subscriptionId || null,
+      assetId: assetId || null
     });
   };
 
@@ -109,6 +121,26 @@ export function useTransactions() {
     await deleteDoc(docRef);
   };
 
+  // --- CORREÇÃO AQUI ---
+  const deleteTransactionsByAssetId = async (assetId) => {
+    if (!userProfile?.isAuthorized) return;
+    
+    // Adicionado 'where("uid", "==", currentUser.uid)' para satisfazer as regras de segurança
+    const q = query(
+        transactionRef, 
+        where("assetId", "==", assetId),
+        where("uid", "==", currentUser.uid) 
+    );
+    const snapshot = await getDocs(q);
+    
+    const batch = writeBatch(db);
+    snapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+    });
+    
+    await batch.commit();
+  };
+
   const updateTransaction = async (id, amount, category, macro, type, isDebt, description = "", date = null, walletId = null) => {
     if (!userProfile?.isAuthorized) return;
     const docRef = doc(db, "transactions", id);
@@ -144,6 +176,7 @@ export function useTransactions() {
     addTransaction, 
     addTransfer, 
     deleteTransaction, 
+    deleteTransactionsByAssetId, 
     updateTransaction, 
     toggleDebtStatus 
   };

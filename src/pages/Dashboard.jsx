@@ -14,12 +14,10 @@ import { TransactionForm } from "../components/TransactionForm";
 import { TransactionList } from "../components/TransactionList";
 import { useNavigate } from "react-router-dom";
 
-// Note que NÃO importamos Layout aqui, pois o App.jsx já cuida disso.
-
 export default function Dashboard() {
   const { transactions, addTransaction, deleteTransaction, updateTransaction, toggleDebtStatus, addTransfer } = useTransactions();
   const { categories } = useCategories();
-  const { assets, addContribution } = useInvestments();
+  const { assets, addContribution, removeContribution } = useInvestments();
   const { wallets, addWallet, setAsDefault } = useWallets(); 
   const { createSubscription, processSubscriptions, updateSubscription } = useSubscriptions();
   const navigate = useNavigate();
@@ -101,10 +99,18 @@ export default function Dashboard() {
       setEditingData(null);
     } else {
       const shouldProcessNow = !isSubscription || (isSubscription && dueDay <= todayDay);
+      
       if (shouldProcessNow) {
-          if (type === 'investment' && assetId) await addContribution(assetId, amount);
-          await addTransaction(amount, categoryName, macro, type, isDebt, description, date, walletId);
+          if (type === 'investment' && assetId) {
+             await addContribution(assetId, amount);
+          }
+          
+          // --- CORREÇÃO AQUI ---
+          // Antes: await addTransaction(..., walletId); -> Faltava assetId
+          // Agora: Passamos null (subscriptionId) e assetId no final
+          await addTransaction(amount, categoryName, macro, type, isDebt, description, date, walletId, null, assetId);
       }
+      
       if (isSubscription) {
         await createSubscription(amount, categoryName, macro, categoryName, type, dueDay, walletId, shouldProcessNow);
         setNotification({ msg: shouldProcessNow ? `Assinatura criada e debitada!` : `Agendado para dia ${dueDay}.`, type: "success" });
@@ -135,6 +141,14 @@ export default function Dashboard() {
 
   const handleDelete = async () => {
     if (deleteModal.id) {
+      const transactionToDelete = transactions.find(t => t.id === deleteModal.id);
+      if (transactionToDelete && transactionToDelete.type === 'investment' && transactionToDelete.assetId) {
+          try {
+              await removeContribution(transactionToDelete.assetId, transactionToDelete.amount);
+          } catch (error) {
+              console.error("Erro ao abater investimento:", error);
+          }
+      }
       await deleteTransaction(deleteModal.id);
       setNotification({ msg: "Removido.", type: "success" });
       setDeleteModal({ isOpen: false, id: null });
@@ -146,11 +160,10 @@ export default function Dashboard() {
   const nextMonth = () => setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1)));
 
   return (
-    <>
+    <div className="pb-24">
       <Notification message={notification?.msg} type={notification?.type} onClose={() => setNotification(null)} />
       <ConfirmModal isOpen={deleteModal.isOpen} onClose={() => setDeleteModal({ isOpen: false, id: null })} onConfirm={handleDelete} title="Excluir" message="Confirma a exclusão?" />
 
-      {/* NAV MÊS - Mantive apenas a navegação de mês, pois o Header agora é global */}
       <div className="flex items-center justify-center gap-4 mb-6">
         <button onClick={prevMonth} className="p-2 hover:bg-gray-800 rounded-full transition-colors"><ChevronLeft /></button>
         <span className="font-bold text-lg capitalize">{currentDate.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}</span>
@@ -158,58 +171,31 @@ export default function Dashboard() {
       </div>
 
       <div className="space-y-6">
-        <Summary 
-            transactions={filteredTransactions} 
-            assets={assets}                     
-            totalBalance={overallBalance}       
-        />
+        <Summary transactions={filteredTransactions} assets={assets} totalBalance={overallBalance} />
 
-        {/* SECTION CARTEIRAS */}
         <div className="bg-gray-800 p-4 rounded-xl border border-gray-700">
            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-gray-400 text-xs font-bold uppercase flex items-center gap-2">
-                <Wallet size={16} /> Minhas Contas
-              </h3>
+              <h3 className="text-gray-400 text-xs font-bold uppercase flex items-center gap-2"><Wallet size={16} /> Minhas Contas</h3>
               <div className="flex gap-2">
-                <button onClick={() => setIsTransferModalOpen(true)} className="text-xs bg-blue-600/20 text-blue-400 px-3 py-1.5 rounded-lg border border-blue-500/50 flex items-center gap-1 hover:bg-blue-600/30">
-                  <ArrowRightLeft size={14} /> Transferir
-                </button>
-                <button onClick={() => setIsWalletModalOpen(true)} className="text-xs bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-gray-600">
-                  <Plus size={14} /> Nova
-                </button>
+                <button onClick={() => setIsTransferModalOpen(true)} className="text-xs bg-blue-600/20 text-blue-400 px-3 py-1.5 rounded-lg border border-blue-500/50 flex items-center gap-1 hover:bg-blue-600/30"><ArrowRightLeft size={14} /> Transferir</button>
+                <button onClick={() => setIsWalletModalOpen(true)} className="text-xs bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-gray-600"><Plus size={14} /> Nova</button>
               </div>
            </div>
-
            <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin">
-              {wallets.length === 0 && <p className="text-sm text-gray-500">Nenhuma conta cadastrada.</p>}
-              
               {walletBalances.map(w => (
                  <div key={w.id} className={`min-w-[140px] p-3 rounded-lg border flex flex-col relative group transition-all ${w.isDefault ? 'bg-blue-900/20 border-blue-500/50' : 'bg-gray-700/30 border-gray-600 hover:border-gray-500'}`}>
-                     <button onClick={() => setAsDefault(w.id)} className={`absolute top-2 right-2 p-1 rounded-full transition-colors ${w.isDefault ? 'text-yellow-400' : 'text-gray-600 hover:text-yellow-200'}`}>
-                        <Star size={12} fill={w.isDefault ? "currentColor" : "none"} />
-                     </button>
+                     <button onClick={() => setAsDefault(w.id)} className={`absolute top-2 right-2 p-1 rounded-full transition-colors ${w.isDefault ? 'text-yellow-400' : 'text-gray-600 hover:text-yellow-200'}`}><Star size={12} fill={w.isDefault ? "currentColor" : "none"} /></button>
                     <span className="text-xs text-gray-400 truncate pr-4">{w.name}</span>
-                    <span className={`font-bold text-sm ${w.balance >= 0 ? 'text-white' : 'text-red-400'}`}>
-                       R$ {w.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                    </span>
+                    <span className={`font-bold text-sm ${w.balance >= 0 ? 'text-white' : 'text-red-400'}`}>R$ {w.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                  </div>
               ))}
            </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* FORMULÁRIO FIXO - PADDING REDUZIDO (top-24) */}
           <div className="lg:col-span-5 relative lg:sticky lg:top-24 z-0">
-            <TransactionForm 
-              onSubmit={handleFormSubmit}
-              categories={categories}
-              assets={assets}
-              wallets={wallets}
-              initialData={editingData}
-              onCancelEdit={() => setEditingData(null)}
-            />
+            <TransactionForm onSubmit={handleFormSubmit} categories={categories} assets={assets} wallets={wallets} initialData={editingData} onCancelEdit={() => setEditingData(null)} />
           </div>
-
           <div className="lg:col-span-7 space-y-6">
             <div className="bg-gray-800 rounded-2xl border border-gray-700 p-4 relative z-0">
                 <div className="flex justify-between items-center mb-4">
@@ -221,44 +207,21 @@ export default function Dashboard() {
                 </div>
                 <CategoryChart transactions={filteredTransactions} mode={chartMode} />
             </div>
-
-            <TransactionList 
-              transactions={filteredTransactions} 
-              onEdit={setEditingData} 
-              onDelete={(id) => setDeleteModal({ isOpen: true, id })} 
-              onToggleDebt={toggleDebtStatus}
-              editingId={editingData?.id}
-            />
+            <TransactionList transactions={filteredTransactions} onEdit={setEditingData} onDelete={(id) => setDeleteModal({ isOpen: true, id })} onToggleDebt={toggleDebtStatus} editingId={editingData?.id} />
           </div>
         </div>
       </div>
 
-      {/* MODAIS (Transfer e Wallet) - Mantidos iguais */}
       {isTransferModalOpen && (
          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
            <div className="bg-gray-800 p-6 rounded-2xl w-full max-w-sm border border-gray-700 animate-scale-up">
               <h3 className="font-bold text-lg mb-4 text-white">Transferência entre Contas</h3>
               <form onSubmit={handleTransfer} className="space-y-4">
-                 <div>
-                    <label className="text-xs text-gray-400">De (Origem)</label>
-                    <select className="w-full bg-gray-700 p-2 rounded text-white" value={transferData.from} onChange={e => setTransferData({...transferData, from: e.target.value})} required>
-                       <option value="">Selecione...</option>
-                       {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                    </select>
-                 </div>
-                 <div>
-                    <label className="text-xs text-gray-400">Para (Destino)</label>
-                    <select className="w-full bg-gray-700 p-2 rounded text-white" value={transferData.to} onChange={e => setTransferData({...transferData, to: e.target.value})} required>
-                       <option value="">Selecione...</option>
-                       {wallets.filter(w => w.id !== transferData.from).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                    </select>
-                 </div>
+                 <div><label className="text-xs text-gray-400">De (Origem)</label><select className="w-full bg-gray-700 p-2 rounded text-white" value={transferData.from} onChange={e => setTransferData({...transferData, from: e.target.value})} required>{wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select></div>
+                 <div><label className="text-xs text-gray-400">Para (Destino)</label><select className="w-full bg-gray-700 p-2 rounded text-white" value={transferData.to} onChange={e => setTransferData({...transferData, to: e.target.value})} required>{wallets.filter(w => w.id !== transferData.from).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select></div>
                  <input type="number" step="0.01" placeholder="Valor" className="w-full bg-gray-700 p-2 rounded text-white" value={transferData.amount} onChange={e => setTransferData({...transferData, amount: e.target.value})} required />
                  <input type="date" className="w-full bg-gray-700 p-2 rounded text-white" value={transferData.date} onChange={e => setTransferData({...transferData, date: e.target.value})} required />
-                 <div className="flex gap-2 mt-4">
-                    <button type="button" onClick={() => setIsTransferModalOpen(false)} className="flex-1 p-2 bg-gray-700 rounded text-gray-300">Cancelar</button>
-                    <button type="submit" className="flex-1 p-2 bg-blue-600 rounded text-white font-bold">Transferir</button>
-                 </div>
+                 <div className="flex gap-2 mt-4"><button type="button" onClick={() => setIsTransferModalOpen(false)} className="flex-1 p-2 bg-gray-700 rounded text-gray-300">Cancelar</button><button type="submit" className="flex-1 p-2 bg-blue-600 rounded text-white font-bold">Transferir</button></div>
               </form>
            </div>
         </div>
@@ -268,18 +231,12 @@ export default function Dashboard() {
            <div className="bg-gray-800 p-6 rounded-2xl w-full max-w-sm border border-gray-700 animate-scale-up">
               <h3 className="font-bold text-lg mb-4 text-white">Nova Conta / Carteira</h3>
               <form onSubmit={handleCreateWallet} className="space-y-4">
-                 <div>
-                    <label className="text-xs text-gray-400">Nome da Conta</label>
-                    <input type="text" placeholder="Ex: Nubank, Bradesco, Cofre..." className="w-full bg-gray-700 p-3 rounded-lg text-white outline-none focus:ring-2 focus:ring-blue-500" value={newWalletName} onChange={e => setNewWalletName(e.target.value)} required autoFocus />
-                 </div>
-                 <div className="flex gap-2 mt-4">
-                    <button type="button" onClick={() => setIsWalletModalOpen(false)} className="flex-1 p-2 bg-gray-700 rounded text-gray-300">Cancelar</button>
-                    <button type="submit" className="flex-1 p-2 bg-green-600 rounded text-white font-bold hover:bg-green-700">Criar</button>
-                 </div>
+                 <div><label className="text-xs text-gray-400">Nome da Conta</label><input type="text" placeholder="Ex: Nubank, Bradesco, Cofre..." className="w-full bg-gray-700 p-3 rounded-lg text-white outline-none focus:ring-2 focus:ring-blue-500" value={newWalletName} onChange={e => setNewWalletName(e.target.value)} required autoFocus /></div>
+                 <div className="flex gap-2 mt-4"><button type="button" onClick={() => setIsWalletModalOpen(false)} className="flex-1 p-2 bg-gray-700 rounded text-gray-300">Cancelar</button><button type="submit" className="flex-1 p-2 bg-green-600 rounded text-white font-bold">Criar</button></div>
               </form>
            </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
