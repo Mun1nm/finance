@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { RefreshCw, Pencil, X, User, TrendingUp, Calendar, Plus, ArrowDownCircle, ArrowUpCircle } from "lucide-react";
+import { RefreshCw, Pencil, X, User, TrendingUp, Calendar, Plus, Clock, Wallet } from "lucide-react"; // Importei Wallet
 import { MoneyInput } from "./MoneyInput";
 import { useNavigate } from "react-router-dom";
 import { usePeople } from "../hooks/usePeople";
@@ -16,6 +16,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
   const [type, setType] = useState("expense");
   const [isSubscription, setIsSubscription] = useState(false);
   const [isDebt, setIsDebt] = useState(false);
+  const [isFuture, setIsFuture] = useState(false);
   const [selectedWallet, setSelectedWallet] = useState("");
   const [selectedPerson, setSelectedPerson] = useState("");
   
@@ -46,6 +47,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
 
       setIsSubscription(false);
       setIsDebt(initialData.isDebt || false);
+      setIsFuture(initialData.isFuture || false);
       setSelectedWallet(initialData.walletId || "");
       setSelectedPerson(initialData.personId || "");
       setDueDay(new Date().getDate());
@@ -57,6 +59,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       setDate(today);
       setIsSubscription(false);
       setIsDebt(false);
+      setIsFuture(false);
       setSelectedPerson("");
       setDueDay(new Date().getDate());
       
@@ -101,6 +104,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       date,
       isSubscription,
       isDebt,
+      isFuture,
       walletId: selectedWallet,
       personId: isDebt ? selectedPerson : null,
       dueDay: isSubscription ? dueDay : null 
@@ -125,6 +129,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
         setDate(today);
         setIsSubscription(false);
         setIsDebt(false);
+        setIsFuture(false);
         setSelectedPerson("");
         setDueDay(new Date().getDate());
     }
@@ -147,19 +152,24 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       <form onSubmit={handleSubmit} className="space-y-4">
         
         <div className="flex gap-2 mb-4">
-          <button type="button" disabled={!!initialData} onClick={() => { setType("expense"); setSelectedId(""); setIsDebt(false); }} className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${type === "expense" ? "bg-red-500/20 text-red-400 border-red-500" : "bg-gray-700 border-transparent text-gray-400 hover:bg-gray-600 disabled:opacity-50"}`}>Saída</button>
-          <button type="button" disabled={!!initialData} onClick={() => { setType("investment"); setSelectedId(""); setIsDebt(false); }} className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${type === "investment" ? "bg-purple-500/20 text-purple-400 border-purple-500" : "bg-gray-700 border-transparent text-gray-400 hover:bg-gray-600 disabled:opacity-50"}`}>Invest.</button>
-          <button type="button" disabled={!!initialData} onClick={() => { setType("income"); setSelectedId(""); setIsDebt(false); }} className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${type === "income" ? "bg-green-500/20 text-green-400 border-green-500" : "bg-gray-700 border-transparent text-gray-400 hover:bg-gray-600 disabled:opacity-50"}`}>Entrada</button>
+          <button type="button" disabled={!!initialData} onClick={() => { setType("expense"); setSelectedId(""); setIsDebt(false); setIsFuture(false); }} className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${type === "expense" ? "bg-red-500/20 text-red-400 border-red-500" : "bg-gray-700 border-transparent text-gray-400 hover:bg-gray-600 disabled:opacity-50"}`}>Saída</button>
+          <button type="button" disabled={!!initialData} onClick={() => { setType("investment"); setSelectedId(""); setIsDebt(false); setIsFuture(false); }} className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${type === "investment" ? "bg-purple-500/20 text-purple-400 border-purple-500" : "bg-gray-700 border-transparent text-gray-400 hover:bg-gray-600 disabled:opacity-50"}`}>Invest.</button>
+          <button type="button" disabled={!!initialData} onClick={() => { setType("income"); setSelectedId(""); setIsDebt(false); setIsFuture(false); }} className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${type === "income" ? "bg-green-500/20 text-green-400 border-green-500" : "bg-gray-700 border-transparent text-gray-400 hover:bg-gray-600 disabled:opacity-50"}`}>Entrada</button>
         </div>
 
         <MoneyInput value={amount} onChange={setAmount} />
 
         {wallets && wallets.length > 0 && (
            <div className="relative">
+              {/* Ícone de Wallet Leading */}
+              <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
+                <Wallet size={16} />
+              </div>
+
               <select 
                 value={selectedWallet} 
                 onChange={e => setSelectedWallet(e.target.value)}
-                className="w-full bg-gray-700 text-white rounded-lg p-2.5 outline-none focus:ring-2 focus:ring-blue-500 border border-gray-600 text-sm appearance-none"
+                className="w-full bg-gray-700 text-white rounded-lg p-2.5 pl-10 outline-none focus:ring-2 focus:ring-blue-500 border border-gray-600 text-sm appearance-none"
                 required={type !== 'investment'}
               >
                  <option value="" disabled>Selecione a Conta / Carteira</option>
@@ -169,6 +179,8 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
                    </option>
                  ))}
               </select>
+              
+              {/* Ícone de Seta Trailing */}
               <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
                 <TrendingUp size={14} className="rotate-90"/>
               </div>
@@ -227,7 +239,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
         {!initialData && (
           <div className="grid grid-cols-1 gap-2">
             <div className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${isSubscription ? 'bg-blue-600/20 border-blue-500' : 'bg-gray-700/50 border-gray-600'}`}>
-              <input type="checkbox" id="subCheck" checked={isSubscription} onChange={(e) => { setIsSubscription(e.target.checked); if(e.target.checked) setIsDebt(false); }} className="w-5 h-5 rounded text-blue-600 bg-gray-700 border-gray-500 cursor-pointer" />
+              <input type="checkbox" id="subCheck" checked={isSubscription} onChange={(e) => { setIsSubscription(e.target.checked); if(e.target.checked) { setIsDebt(false); setIsFuture(false); } }} className="w-5 h-5 rounded text-blue-600 bg-gray-700 border-gray-500 cursor-pointer" />
               <label htmlFor="subCheck" className="text-sm text-gray-300 flex items-center gap-2 cursor-pointer select-none w-full">
                 <RefreshCw size={14} /> Repetir mensalmente
               </label>
@@ -247,8 +259,18 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
               )}
             </div>
 
-            {/* CHECKBOX DÍVIDA (Agora aceita EXPENSE ou INCOME) */}
-            {(type === 'expense' || type === 'income') && !isSubscription && (
+            {/* CHECKBOX RECEBIMENTO FUTURO (Apenas para Entradas e se não for assinatura) */}
+            {type === 'income' && !isSubscription && !isDebt && (
+               <div className={`flex items-center gap-2 p-3 rounded-lg border transition-colors ${isFuture ? 'bg-blue-500/20 border-blue-500' : 'bg-gray-700/50 border-gray-600'}`}>
+                   <input type="checkbox" id="futureCheck" checked={isFuture} onChange={(e) => setIsFuture(e.target.checked)} className="w-5 h-5 rounded text-blue-500 bg-gray-700 border-gray-500 cursor-pointer accent-blue-500" />
+                   <label htmlFor="futureCheck" className={`text-sm flex items-center gap-2 cursor-pointer select-none w-full ${isFuture ? 'text-blue-200' : 'text-gray-300'}`}>
+                     <Clock size={14} /> Recebimento Futuro (Agendado)
+                   </label>
+               </div>
+            )}
+
+            {/* CHECKBOX DÍVIDA (Expense ou Income, mas não Future) */}
+            {(type === 'expense' || type === 'income') && !isSubscription && !isFuture && (
                <div className={`p-3 rounded-lg border transition-colors ${isDebt ? 'bg-orange-500/20 border-orange-500' : 'bg-gray-700/50 border-gray-600'}`}>
                    <div className="flex items-center gap-2 mb-2">
                        <input type="checkbox" id="debtCheck" checked={isDebt} onChange={(e) => setIsDebt(e.target.checked)} className="w-5 h-5 rounded text-orange-500 bg-gray-700 border-gray-500 cursor-pointer accent-orange-500" />

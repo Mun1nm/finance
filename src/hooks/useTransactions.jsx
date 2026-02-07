@@ -57,7 +57,7 @@ export function useTransactions() {
     return new Date(year, month - 1, day, now.getHours(), now.getMinutes());
   };
 
-  const addTransaction = async (amount, category, macro, type = 'expense', isDebt = false, description = "", date = null, walletId = null, subscriptionId = null, assetId = null, personId = null) => {
+  const addTransaction = async (amount, category, macro, type = 'expense', isDebt = false, description = "", date = null, walletId = null, subscriptionId = null, assetId = null, personId = null, isFuture = false) => {
     if (!userProfile?.isAuthorized) return;
     if (!amount) return;
     
@@ -70,6 +70,7 @@ export function useTransactions() {
       description,
       isDebt,
       debtPaid: false,
+      isFuture: isFuture || false,
       date: parseDate(date),
       walletId: walletId || null,
       subscriptionId: subscriptionId || null,
@@ -94,6 +95,7 @@ export function useTransactions() {
       type: "expense",
       description: `Para: ${toName}`,
       isDebt: false,
+      isFuture: false,
       debtPaid: false,
       date: transactionDate,
       walletId: fromWalletId
@@ -108,6 +110,7 @@ export function useTransactions() {
       type: "income",
       description: `De: ${fromName}`,
       isDebt: false,
+      isFuture: false,
       debtPaid: false,
       date: transactionDate,
       walletId: toWalletId
@@ -122,27 +125,22 @@ export function useTransactions() {
     await deleteDoc(docRef);
   };
 
-  // --- CORREÇÃO AQUI ---
   const deleteTransactionsByAssetId = async (assetId) => {
     if (!userProfile?.isAuthorized) return;
-    
-    // Adicionado 'where("uid", "==", currentUser.uid)' para satisfazer as regras de segurança
     const q = query(
         transactionRef, 
         where("assetId", "==", assetId),
         where("uid", "==", currentUser.uid) 
     );
     const snapshot = await getDocs(q);
-    
     const batch = writeBatch(db);
     snapshot.docs.forEach(doc => {
         batch.delete(doc.ref);
     });
-    
     await batch.commit();
   };
 
-  const updateTransaction = async (id, amount, category, macro, type, isDebt, description = "", date = null, walletId = null) => {
+  const updateTransaction = async (id, amount, category, macro, type, isDebt, description = "", date = null, walletId = null, isFuture = false) => {
     if (!userProfile?.isAuthorized) return;
     const docRef = doc(db, "transactions", id);
     
@@ -152,6 +150,7 @@ export function useTransactions() {
       macro,
       type,
       isDebt,
+      isFuture,
       description,
       walletId: walletId || null
     };
@@ -171,6 +170,16 @@ export function useTransactions() {
     });
   };
 
+  // CORREÇÃO AQUI: Atualiza data para HOJE ao confirmar
+  const confirmFutureReceipt = async (id) => {
+    if (!userProfile?.isAuthorized) return;
+    const docRef = doc(db, "transactions", id);
+    await updateDoc(docRef, {
+      isFuture: false,
+      date: new Date() // Data atual
+    });
+  };
+
   return { 
     transactions, 
     loading, 
@@ -179,6 +188,7 @@ export function useTransactions() {
     deleteTransaction, 
     deleteTransactionsByAssetId, 
     updateTransaction, 
-    toggleDebtStatus 
+    toggleDebtStatus,
+    confirmFutureReceipt
   };
 }
