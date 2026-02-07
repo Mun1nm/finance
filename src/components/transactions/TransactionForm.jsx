@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
 import { RefreshCw, Pencil, X, User, TrendingUp, Calendar, Plus, Clock, Wallet, CreditCard } from "lucide-react";
-import { MoneyInput } from "./MoneyInput";
+import { MoneyInput } from "../ui/MoneyInput";
 import { useNavigate } from "react-router-dom";
-import { usePeople } from "../hooks/usePeople";
+import { usePeople } from "../../hooks/usePeople";
 
 export function TransactionForm({ onSubmit, categories, assets, wallets, initialData, onCancelEdit }) {
   const navigate = useNavigate();

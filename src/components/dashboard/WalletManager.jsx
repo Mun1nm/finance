@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Wallet, ArrowRightLeft, Plus, Star, Trash2, AlertTriangle, Clock, CreditCard, Check, Save, Pencil, Loader2, Receipt } from "lucide-react"; // Importei Receipt
-import { useWallets } from "../hooks/useWallets";
+import { useWallets } from "../../hooks/useWallets";
 
 export function WalletManager({ 
   wallets, 

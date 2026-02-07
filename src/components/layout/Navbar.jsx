@@ -1,5 +1,5 @@
 import { useNavigate, useLocation } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth } from "../../contexts/AuthContext";
 import { 
   LogOut, Settings, TrendingUp, RefreshCw, LayoutDashboard, Users 
 } from "lucide-react";
