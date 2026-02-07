@@ -5,14 +5,14 @@ import { useCategories } from "../hooks/useCategories";
 import { useSubscriptions } from "../hooks/useSubscriptions";
 import { useInvestments } from "../hooks/useInvestments"; 
 import { useWallets } from "../hooks/useWallets"; 
-import { ChevronLeft, ChevronRight, BarChart3, PieChart } from "lucide-react";
+import { ChevronLeft, ChevronRight, BarChart3, PieChart, TrendingUp, TrendingDown } from "lucide-react";
 import { Summary } from "../components/Summary";
 import { CategoryChart } from "../components/CategoryChart";
 import { ConfirmModal } from "../components/ConfirmModal";
 import { Notification } from "../components/Notification";
 import { TransactionForm } from "../components/TransactionForm";
 import { TransactionList } from "../components/TransactionList";
-import { WalletManager } from "../components/WalletManager"; // <--- NOVO IMPORT
+import { WalletManager } from "../components/WalletManager";
 import { useNavigate } from "react-router-dom";
 
 export default function Dashboard() {
@@ -25,6 +25,7 @@ export default function Dashboard() {
 
   const [currentDate, setCurrentDate] = useState(new Date()); 
   const [chartMode, setChartMode] = useState("macro");
+  const [chartType, setChartType] = useState("expense"); // Estado do Switch (income/expense)
   const [editingData, setEditingData] = useState(null);
   const [notification, setNotification] = useState(null);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null });
@@ -59,7 +60,6 @@ export default function Dashboard() {
     return acc;
   }, 0);
 
-  // O cálculo de saldo ainda fica aqui pois depende de transactions, que pertence à Dashboard
   const walletBalances = wallets.map(w => {
     const balance = transactions
       .filter(t => t.walletId === w.id)
@@ -133,7 +133,6 @@ export default function Dashboard() {
       <Notification message={notification?.msg} type={notification?.type} onClose={() => setNotification(null)} />
       <ConfirmModal isOpen={deleteModal.isOpen} onClose={() => setDeleteModal({ isOpen: false, id: null })} onConfirm={handleDelete} title="Excluir Transação" message="Confirma a exclusão?" />
 
-      {/* Navegação Mês */}
       <div className="flex items-center justify-center gap-4 mb-6">
         <button onClick={prevMonth} className="p-2 hover:bg-gray-800 rounded-full transition-colors"><ChevronLeft /></button>
         <span className="font-bold text-lg capitalize">{currentDate.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}</span>
@@ -143,7 +142,7 @@ export default function Dashboard() {
       <div className="space-y-6">
         <Summary transactions={filteredTransactions} assets={assets} totalBalance={overallBalance} />
 
-        {/* SECTION CARTEIRAS (AGORA MODULARIZADO) */}
+        {/* SECTION CARTEIRAS (MODULARIZADO) */}
         <WalletManager 
             wallets={wallets}
             walletBalances={walletBalances}
@@ -151,7 +150,7 @@ export default function Dashboard() {
             onSetDefault={setAsDefault}
             onDeleteWallet={deleteWallet}
             onTransfer={addTransfer}
-            onAddTransaction={addTransaction} // Necessário para ajuste de saldo ao deletar
+            onAddTransaction={addTransaction}
         />
 
         {/* Transações */}
@@ -159,16 +158,47 @@ export default function Dashboard() {
           <div className="lg:col-span-5 relative lg:sticky lg:top-24 z-0">
             <TransactionForm onSubmit={handleFormSubmit} categories={categories} assets={assets} wallets={wallets} initialData={editingData} onCancelEdit={() => setEditingData(null)} />
           </div>
+          
           <div className="lg:col-span-7 space-y-6">
+            
+            {/* CARD DO GRÁFICO */}
             <div className="bg-gray-800 rounded-2xl border border-gray-700 p-4 relative z-0">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="text-gray-400 text-sm font-bold uppercase">Análise</h3>
-                    <div className="flex bg-gray-700 rounded-lg p-1">
-                        <button onClick={() => setChartMode("macro")} className={`p-1 rounded ${chartMode === 'macro' ? 'bg-gray-600' : ''}`}><PieChart size={16}/></button>
-                        <button onClick={() => setChartMode("category")} className={`p-1 rounded ${chartMode === 'category' ? 'bg-gray-600' : ''}`}><BarChart3 size={16}/></button>
+                <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3">
+                    <h3 className="text-gray-400 text-sm font-bold uppercase self-start sm:self-center">Análise</h3>
+                    
+                    <div className="flex gap-3">
+                        {/* Switch de TIPO (Entradas/Saídas) */}
+                        <div className="flex bg-gray-700 rounded-lg p-1">
+                            <button 
+                                onClick={() => setChartType("income")} 
+                                className={`p-1.5 px-3 rounded text-xs font-bold flex items-center gap-1 transition-all ${chartType === 'income' ? 'bg-green-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                            >
+                                <TrendingUp size={14}/> Entradas
+                            </button>
+                            <button 
+                                onClick={() => setChartType("expense")} 
+                                className={`p-1.5 px-3 rounded text-xs font-bold flex items-center gap-1 transition-all ${chartType === 'expense' ? 'bg-red-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                            >
+                                <TrendingDown size={14}/> Saídas
+                            </button>
+                        </div>
+
+                        {/* Switch de MODO (Macro/Categoria) */}
+                        <div className="flex bg-gray-700 rounded-lg p-1">
+                            <button onClick={() => setChartMode("macro")} className={`p-1.5 rounded transition-all ${chartMode === 'macro' ? 'bg-gray-600 text-white shadow' : 'text-gray-400'}`}><PieChart size={16}/></button>
+                            <button onClick={() => setChartMode("category")} className={`p-1.5 rounded transition-all ${chartMode === 'category' ? 'bg-gray-600 text-white shadow' : 'text-gray-400'}`}><BarChart3 size={16}/></button>
+                        </div>
                     </div>
                 </div>
-                <CategoryChart transactions={filteredTransactions} mode={chartMode} />
+                
+                {/* CORREÇÃO DO WARNING: Div com altura fixa envolvendo o componente */}
+                <div className="h-80 w-full">
+                    <CategoryChart 
+                        transactions={filteredTransactions.filter(t => t.type === chartType)} 
+                        mode={chartMode} 
+                        type={chartType} // Passando o tipo para o componente saber o texto certo
+                    />
+                </div>
             </div>
             
             <TransactionList 
