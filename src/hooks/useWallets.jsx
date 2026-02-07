@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "../services/firebase";
-import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc, writeBatch, getDocs } from "firebase/firestore";
+import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc, writeBatch, getDocs, updateDoc } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
 
 export function useWallets() {
@@ -24,6 +24,7 @@ export function useWallets() {
         id: doc.id,
         ...doc.data()
       }));
+      // Ordena: Primeiro a Default, depois por nome
       setWallets(data.sort((a, b) => (b.isDefault === true) - (a.isDefault === true) || a.name.localeCompare(b.name)));
       setLoading(false);
     });
@@ -31,8 +32,8 @@ export function useWallets() {
     return unsubscribe;
   }, [currentUser, userProfile]);
 
-  // ATUALIZADO: Aceita parâmetros de crédito
-  const addWallet = async (name, hasCredit = false, closingDay = null, dueDay = null) => {
+  // ATUALIZADO: Aceita creditLimit
+  const addWallet = async (name, hasCredit = false, closingDay = null, dueDay = null, creditLimit = 0) => {
     if (!userProfile?.isAuthorized) return;
     await addDoc(walletsRef, {
       uid: currentUser.uid,
@@ -41,6 +42,7 @@ export function useWallets() {
       hasCredit, 
       closingDay: hasCredit ? parseInt(closingDay) : null,
       dueDay: hasCredit ? parseInt(dueDay) : null,
+      creditLimit: hasCredit ? parseFloat(creditLimit) : 0, // Novo Campo
       createdAt: new Date()
     });
   };
@@ -48,6 +50,13 @@ export function useWallets() {
   const deleteWallet = async (id) => {
     if (!userProfile?.isAuthorized) return;
     await deleteDoc(doc(db, "wallets", id));
+  };
+
+  // NOVA FUNÇÃO: Atualizar dados da carteira (ex: limite)
+  const updateWallet = async (id, data) => {
+    if (!userProfile?.isAuthorized) return;
+    const walletRef = doc(db, "wallets", id);
+    await updateDoc(walletRef, data);
   };
 
   const setAsDefault = async (walletId) => {
@@ -67,5 +76,5 @@ export function useWallets() {
     await batch.commit();
   };
 
-  return { wallets, loading, addWallet, deleteWallet, setAsDefault };
+  return { wallets, loading, addWallet, deleteWallet, updateWallet, setAsDefault };
 }

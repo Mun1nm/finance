@@ -1,12 +1,13 @@
-import { useState } from "react";
-import { Wallet, ArrowRightLeft, Plus, Star, Trash2, AlertTriangle, Clock, CreditCard, ChevronRight, Check } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Wallet, ArrowRightLeft, Plus, Star, Trash2, AlertTriangle, Clock, CreditCard, Check, Save, Pencil, Loader2, Receipt } from "lucide-react"; // Importei Receipt
+import { useWallets } from "../hooks/useWallets";
 
 export function WalletManager({ 
   wallets, 
   walletBalances, 
   overallBalance, 
   futureBalance, 
-  transactions, // Recebe transações para listar na fatura
+  transactions, 
   onOpenFutureModal, 
   onAddWallet, 
   onSetDefault, 
@@ -14,35 +15,60 @@ export function WalletManager({
   onTransfer, 
   onAddTransaction 
 }) {
-  
+  const { updateWallet } = useWallets();
+
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [transferData, setTransferData] = useState({ from: '', to: '', amount: '', date: new Date().toISOString().split('T')[0] });
   
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   
-  // States para Nova Carteira
   const [newWalletName, setNewWalletName] = useState("");
   const [hasCredit, setHasCredit] = useState(false);
   const [closingDay, setClosingDay] = useState("1");
   const [dueDay, setDueDay] = useState("10");
+  const [creditLimit, setCreditLimit] = useState("");
 
   const [walletDeleteData, setWalletDeleteData] = useState(null);
   const [walletDestinyId, setWalletDestinyId] = useState("");
 
-  // States para Fatura
   const [invoiceModalWallet, setInvoiceModalWallet] = useState(null);
+  const [editingLimit, setEditingLimit] = useState(false);
+  const [newLimitValue, setNewLimitValue] = useState(""); 
+  
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+      if (invoiceModalWallet) {
+          const updatedWallet = walletBalances.find(w => w.id === invoiceModalWallet.id);
+          if (updatedWallet) {
+              setInvoiceModalWallet(updatedWallet);
+          }
+      }
+  }, [walletBalances]);
 
   const handleCreateWallet = async (e) => {
     e.preventDefault();
-    if (!newWalletName.trim()) return;
-    await onAddWallet(newWalletName, hasCredit, closingDay, dueDay);
-    setNewWalletName("");
-    setHasCredit(false);
-    setIsWalletModalOpen(false);
+    if (!newWalletName.trim() || isSubmitting) return;
+
+    try {
+        setIsSubmitting(true);
+        await onAddWallet(newWalletName, hasCredit, closingDay, dueDay, creditLimit);
+        
+        setNewWalletName("");
+        setHasCredit(false);
+        setCreditLimit("");
+        setIsWalletModalOpen(false);
+    } catch (error) {
+        console.error("Erro ao criar carteira:", error);
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
   const handleTransfer = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     const fromWallet = wallets.find(w => w.id === transferData.from);
     const toWallet = wallets.find(w => w.id === transferData.to);
     
@@ -51,21 +77,27 @@ export function WalletManager({
         return;
     }
     
-    await onTransfer(
-        transferData.amount, 
-        transferData.from, 
-        transferData.to, 
-        transferData.date, 
-        fromWallet.name, 
-        toWallet.name
-    );
-    
-    setIsTransferModalOpen(false);
-    setTransferData({ from: '', to: '', amount: '', date: new Date().toISOString().split('T')[0] });
+    try {
+        setIsSubmitting(true);
+        await onTransfer(
+            transferData.amount, 
+            transferData.from, 
+            transferData.to, 
+            transferData.date, 
+            fromWallet.name, 
+            toWallet.name
+        );
+        setIsTransferModalOpen(false);
+        setTransferData({ from: '', to: '', amount: '', date: new Date().toISOString().split('T')[0] });
+    } catch (error) {
+        console.error("Erro na transferência:", error);
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
   const handlePayInvoice = async () => {
-      if (!invoiceModalWallet) return;
+      if (!invoiceModalWallet || isSubmitting) return;
       const { balance, currentInvoice, currentInvoiceDate, id } = invoiceModalWallet;
 
       if (balance < currentInvoice) {
@@ -73,22 +105,41 @@ export function WalletManager({
           return;
       }
 
-      await onAddTransaction(
-          currentInvoice,
-          "Pagamento de Fatura",
-          "Transferências",
-          "expense",
-          false,
-          `Fatura ${currentInvoiceDate}`,
-          new Date().toISOString().split('T')[0],
-          id, // Wallet ID
-          null, null, null, false, 
-          'debit', // Sai como débito
-          currentInvoiceDate, // Marca qual fatura pagou
-          true // isInvoicePayment
-      );
+      try {
+          setIsSubmitting(true);
+          await onAddTransaction(
+              currentInvoice,
+              "Pagamento de Fatura",
+              "Transferências",
+              "expense",
+              false,
+              `Fatura ${currentInvoiceDate}`,
+              new Date().toISOString().split('T')[0],
+              id, 
+              null, null, null, false, 
+              'debit', 
+              currentInvoiceDate, 
+              true 
+          );
+          setInvoiceModalWallet(null);
+      } catch (error) {
+          console.error("Erro ao pagar fatura:", error);
+      } finally {
+          setIsSubmitting(false);
+      }
+  };
 
-      setInvoiceModalWallet(null);
+  const handleUpdateLimit = async () => {
+      if (!newLimitValue || isNaN(newLimitValue) || isSubmitting) return;
+      try {
+          setIsSubmitting(true);
+          await updateWallet(invoiceModalWallet.id, { creditLimit: parseFloat(newLimitValue) });
+          setEditingLimit(false);
+      } catch (error) {
+          console.error("Erro ao atualizar limite:", error);
+      } finally {
+          setIsSubmitting(false);
+      }
   };
 
   const initiateWalletDeletion = (wallet) => {
@@ -101,10 +152,12 @@ export function WalletManager({
   };
 
   const confirmWalletDeletion = async () => {
-    if (!walletDeleteData) return;
+    if (!walletDeleteData || isSubmitting) return;
     const { id, name, balance } = walletDeleteData;
 
     try {
+        setIsSubmitting(true);
+
         if (Math.abs(balance) > 0.01) {
             if (walletDestinyId) {
                 const destinyWallet = wallets.find(w => w.id === walletDestinyId);
@@ -134,10 +187,13 @@ export function WalletManager({
         }
 
         await onDeleteWallet(id);
-    } catch (error) {
-        console.error(error);
-    } finally {
         setWalletDeleteData(null);
+        
+    } catch (error) {
+        console.error("Erro ao excluir carteira:", error);
+        alert("Erro ao excluir. Verifique sua conexão ou tente novamente.");
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
@@ -205,19 +261,32 @@ export function WalletManager({
                     </span>
 
                     {/* Exibir Fatura se tiver crédito */}
-                    {w.hasCredit && w.currentInvoice > 0 && (
-                        <button 
-                            onClick={() => setInvoiceModalWallet(w)}
-                            className="mt-2 text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 p-1.5 rounded flex items-center justify-between hover:bg-purple-500/30 transition-colors"
-                        >
-                            <span>Fatura Atual</span>
-                            <span className="font-bold">R$ {w.currentInvoice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                        </button>
+                    {w.hasCredit && (
+                        <div className="mt-2 space-y-1">
+                            {w.currentInvoice > 0 ? (
+                                <button 
+                                    onClick={() => setInvoiceModalWallet(w)}
+                                    className="w-full text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 p-1.5 rounded flex items-center justify-between hover:bg-purple-500/30 transition-colors"
+                                >
+                                    {/* MUDANÇA AQUI: ÍCONE NO LUGAR DO TEXTO */}
+                                    <span title="Fatura Atual"><Receipt size={14} /></span>
+                                    <span className="font-bold">R$ {w.currentInvoice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                </button>
+                            ) : (
+                                <button 
+                                    onClick={() => setInvoiceModalWallet(w)}
+                                    className="w-full text-[10px] text-gray-500 border border-gray-600/30 p-1.5 rounded flex items-center justify-center hover:bg-gray-700 transition-colors gap-2"
+                                >
+                                    <Receipt size={14} /> <span className="opacity-50">Zerada</span>
+                                </button>
+                            )}
+                        </div>
                     )}
                 </div>
             ))}
         </div>
 
+        {/* ... (OS MODAIS CONTINUAM IGUAIS) ... */}
         {/* MODAL NOVA CARTEIRA */}
         {isWalletModalOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
@@ -239,14 +308,20 @@ export function WalletManager({
                             </div>
                             
                             {hasCredit && (
-                                <div className="flex gap-2 animate-fade-in">
-                                    <div>
-                                        <label className="text-[10px] text-gray-400">Fechamento (Dia)</label>
-                                        <input type="number" min="1" max="31" value={closingDay} onChange={e => setClosingDay(e.target.value)} className="w-full bg-gray-800 text-white p-2 rounded text-sm border border-gray-600" />
+                                <div className="space-y-3 animate-fade-in">
+                                    <div className="flex gap-2">
+                                        <div className="flex-1">
+                                            <label className="text-[10px] text-gray-400">Fechamento (Dia)</label>
+                                            <input type="number" min="1" max="31" value={closingDay} onChange={e => setClosingDay(e.target.value)} className="w-full bg-gray-800 text-white p-2 rounded text-sm border border-gray-600" />
+                                        </div>
+                                        <div className="flex-1">
+                                            <label className="text-[10px] text-gray-400">Vencimento (Dia)</label>
+                                            <input type="number" min="1" max="31" value={dueDay} onChange={e => setDueDay(e.target.value)} className="w-full bg-gray-800 text-white p-2 rounded text-sm border border-gray-600" />
+                                        </div>
                                     </div>
                                     <div>
-                                        <label className="text-[10px] text-gray-400">Vencimento (Dia)</label>
-                                        <input type="number" min="1" max="31" value={dueDay} onChange={e => setDueDay(e.target.value)} className="w-full bg-gray-800 text-white p-2 rounded text-sm border border-gray-600" />
+                                        <label className="text-[10px] text-gray-400">Limite do Cartão (R$)</label>
+                                        <input type="number" step="0.01" placeholder="Ex: 2000.00" value={creditLimit} onChange={e => setCreditLimit(e.target.value)} className="w-full bg-gray-800 text-white p-2 rounded text-sm border border-gray-600" />
                                     </div>
                                 </div>
                             )}
@@ -254,7 +329,9 @@ export function WalletManager({
 
                         <div className="flex gap-2 mt-4">
                             <button type="button" onClick={() => setIsWalletModalOpen(false)} className="flex-1 p-2 bg-gray-700 rounded text-gray-300">Cancelar</button>
-                            <button type="submit" className="flex-1 p-2 bg-green-600 rounded text-white font-bold">Criar</button>
+                            <button type="submit" disabled={isSubmitting} className="flex-1 p-2 bg-green-600 rounded text-white font-bold flex justify-center items-center gap-2">
+                                {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : "Criar"}
+                            </button>
                         </div>
                     </form>
                 </div>
@@ -285,7 +362,9 @@ export function WalletManager({
                         <input type="date" className="w-full bg-gray-700 p-2 rounded text-white" value={transferData.date} onChange={e => setTransferData({...transferData, date: e.target.value})} required />
                         <div className="flex gap-2 mt-4">
                             <button type="button" onClick={() => setIsTransferModalOpen(false)} className="flex-1 p-2 bg-gray-700 rounded text-gray-300">Cancelar</button>
-                            <button type="submit" className="flex-1 p-2 bg-blue-600 rounded text-white font-bold">Transferir</button>
+                            <button type="submit" disabled={isSubmitting} className="flex-1 p-2 bg-blue-600 rounded text-white font-bold flex justify-center gap-2">
+                                {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : "Transferir"}
+                            </button>
                         </div>
                     </form>
                 </div>
@@ -322,8 +401,8 @@ export function WalletManager({
 
                     <div className="flex gap-2 mt-6">
                         <button onClick={() => setWalletDeleteData(null)} className="flex-1 p-3 bg-gray-700 rounded-lg text-gray-300 hover:bg-gray-600 font-medium">Cancelar</button>
-                        <button onClick={confirmWalletDeletion} className={`flex-1 p-3 rounded-lg text-white font-bold shadow-lg ${walletDestinyId ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'}`}>
-                            {walletDestinyId ? "Transferir e Excluir" : "Excluir Tudo"}
+                        <button onClick={confirmWalletDeletion} disabled={isSubmitting} className={`flex-1 p-3 rounded-lg text-white font-bold shadow-lg flex justify-center gap-2 ${walletDestinyId ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'}`}>
+                            {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : (walletDestinyId ? "Transferir e Excluir" : "Excluir Tudo")}
                         </button>
                     </div>
                 </div>
@@ -333,38 +412,93 @@ export function WalletManager({
         {/* MODAL PAGAMENTO DE FATURA */}
         {invoiceModalWallet && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-                <div className="bg-gray-800 p-6 rounded-2xl w-full max-w-md border border-purple-500/30 animate-scale-up shadow-2xl">
-                    <div className="flex justify-between items-center mb-4">
-                        <div className="flex items-center gap-2">
-                            <CreditCard className="text-purple-400" />
-                            <h3 className="font-bold text-lg text-white">{invoiceModalWallet.name} - Fatura</h3>
-                        </div>
-                        <button onClick={() => setInvoiceModalWallet(null)} className="text-gray-400 hover:text-white"><Plus size={20} className="rotate-45" /></button>
+                <div className="bg-gray-800 p-6 rounded-2xl w-full max-w-md border border-purple-500/30 animate-scale-up shadow-2xl relative">
+                    <button onClick={() => setInvoiceModalWallet(null)} className="absolute top-4 right-4 text-gray-400 hover:text-white"><Plus size={24} className="rotate-45" /></button>
+                    
+                    <div className="flex flex-col mb-4">
+                        <h3 className="font-bold text-lg text-white flex items-center gap-2">
+                            <CreditCard className="text-purple-400" /> {invoiceModalWallet.name}
+                        </h3>
+                        <p className="text-xs text-gray-400 mt-1">
+                            Vencimento dia {invoiceModalWallet.dueDay} • Fechamento dia {invoiceModalWallet.closingDay}
+                        </p>
                     </div>
+
+                    {/* SESSÃO DO LIMITE (MOSTRA MESMO SE LIMITE FOR 0) */}
+                    {invoiceModalWallet.hasCredit && (
+                        <div className="mb-5 bg-gray-700/30 p-3 rounded-lg border border-gray-600">
+                            <div className="flex justify-between items-end mb-1">
+                                <span className="text-[10px] text-gray-400 uppercase font-bold">Limite Utilizado</span>
+                                
+                                {editingLimit ? (
+                                    <div className="flex gap-1 items-center">
+                                        <input 
+                                            type="number" 
+                                            autoFocus
+                                            className="w-24 bg-gray-900 border border-purple-500 rounded text-xs text-white p-1 text-right outline-none"
+                                            value={newLimitValue}
+                                            onChange={e => setNewLimitValue(e.target.value)}
+                                            placeholder={invoiceModalWallet.creditLimit}
+                                        />
+                                        <button onClick={handleUpdateLimit} className="bg-green-600 p-1 rounded text-white hover:bg-green-500">
+                                            <Save size={12}/>
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div className="text-xs text-purple-200 flex gap-2 items-center">
+                                        <span>
+                                            R$ {invoiceModalWallet.currentInvoice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} 
+                                            <span className="text-gray-500 mx-1">/</span> 
+                                            {/* CORREÇÃO DO DISPLAY DE LIMITE */}
+                                            {invoiceModalWallet.creditLimit > 0 
+                                                ? `R$ ${invoiceModalWallet.creditLimit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` 
+                                                : "Sem Limite Definido"
+                                            }
+                                        </span>
+                                        <button onClick={() => { setEditingLimit(true); setNewLimitValue(invoiceModalWallet.creditLimit || ""); }} className="text-gray-500 hover:text-white underline p-1 hover:bg-gray-600 rounded">
+                                            <Pencil size={14} />
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            {/* Barra Visual (Trata Limite 0 para não bugar) */}
+                            <div className="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
+                                <div 
+                                    className={`h-full transition-all duration-500 ${
+                                        invoiceModalWallet.creditLimit > 0 && (invoiceModalWallet.currentInvoice / invoiceModalWallet.creditLimit) > 0.9 
+                                        ? 'bg-red-500' 
+                                        : 'bg-purple-500'
+                                    }`}
+                                    style={{ width: `${invoiceModalWallet.creditLimit > 0 ? Math.min((invoiceModalWallet.currentInvoice / invoiceModalWallet.creditLimit) * 100, 100) : 0}%` }}
+                                ></div>
+                            </div>
+                        </div>
+                    )}
 
                     <div className="mb-6 bg-purple-900/20 p-4 rounded-xl border border-purple-500/30 text-center">
                         <p className="text-purple-300 text-sm mb-1">Valor da Fatura Aberta</p>
                         <span className="text-3xl font-bold text-white">R$ {invoiceModalWallet.currentInvoice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                        <p className="text-gray-400 text-xs mt-2">Vence dia {invoiceModalWallet.dueDay}</p>
                     </div>
 
-                    {/* Lista das despesas da fatura */}
-                    <div className="max-h-[40vh] overflow-y-auto pr-2 mb-4 space-y-2 scrollbar-thin">
+                    <div className="max-h-[35vh] overflow-y-auto pr-2 mb-4 space-y-2 scrollbar-thin">
+                        {transactions.length === 0 && <p className="text-center text-gray-500 text-sm py-4">Sem compras nesta fatura.</p>}
                         {transactions
                             .filter(t => t.walletId === invoiceModalWallet.id && t.paymentMethod === 'credit' && t.invoiceDate === invoiceModalWallet.currentInvoiceDate)
                             .map(t => (
-                                <div key={t.id} className="flex justify-between items-center text-sm p-2 bg-gray-700/30 rounded">
-                                    <span className="text-gray-300">{t.description || t.category}</span>
-                                    <span className="text-white font-bold">R$ {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                <div key={t.id} className="flex justify-between items-center text-sm p-2 bg-gray-700/30 rounded border border-transparent hover:border-gray-600 transition-colors">
+                                    <span className="text-gray-300 truncate pr-2">{t.description || t.category}</span>
+                                    <span className="text-white font-bold whitespace-nowrap">R$ {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                 </div>
                             ))}
                     </div>
 
                     <button 
                         onClick={handlePayInvoice}
-                        className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+                        className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed"
+                        disabled={invoiceModalWallet.currentInvoice <= 0 || isSubmitting}
                     >
-                        <Check size={18} /> Pagar Fatura
+                        {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : <><Check size={18} /> Pagar Fatura</>}
                     </button>
                 </div>
             </div>
