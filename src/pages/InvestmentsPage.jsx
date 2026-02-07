@@ -4,9 +4,9 @@ import { useTransactions } from "../hooks/useTransactions";
 import { useWallets } from "../hooks/useWallets"; 
 import { ArrowLeft, Plus, TrendingUp, DollarSign, RefreshCw, Trash2, Wallet, ArrowDownRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { MoneyInput } from "../components/MoneyInput";
-import { Notification } from "../components/Notification";
-import { ConfirmModal } from "../components/ConfirmModal";
+import { MoneyInput } from "../components/ui/MoneyInput";
+import { Notification } from "../components/ui/Notification";
+import { ConfirmModal } from "../components/ui/ConfirmModal";
 
 export default function InvestmentsPage() {
   const { assets, addAsset, updateBalance, addContribution, deleteAsset, processWithdrawal } = useInvestments();

@@ -6,13 +6,13 @@ import { useSubscriptions } from "../hooks/useSubscriptions";
 import { useInvestments } from "../hooks/useInvestments"; 
 import { useWallets } from "../hooks/useWallets"; 
 import { ChevronLeft, ChevronRight, BarChart3, PieChart, TrendingUp, TrendingDown, Clock, CheckCircle2, Calendar } from "lucide-react";
-import { Summary } from "../components/Summary";
-import { CategoryChart } from "../components/CategoryChart";
-import { ConfirmModal } from "../components/ConfirmModal";
-import { Notification } from "../components/Notification";
-import { TransactionForm } from "../components/TransactionForm";
-import { TransactionList } from "../components/TransactionList";
-import { WalletManager } from "../components/WalletManager";
+import { Summary } from "../components/dashboard/Summary";
+import { CategoryChart } from "../components/dashboard/CategoryChart";
+import { ConfirmModal } from "../components/ui/ConfirmModal";
+import { Notification } from "../components/ui/Notification";
+import { TransactionForm } from "../components/transactions/TransactionForm";
+import { TransactionList } from "../components/transactions/TransactionList";
+import { WalletManager } from "../components/dashboard/WalletManager";
 import { useNavigate } from "react-router-dom";
 
 export default function Dashboard() {

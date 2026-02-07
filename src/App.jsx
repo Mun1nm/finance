@@ -7,7 +7,7 @@ import InvestmentsPage from "./pages/InvestmentsPage";
 import SubscriptionsPage from "./pages/SubscriptionsPage"; // Não esqueça de importar
 import PeoplePage from "./pages/PeoplePage";
 import Unauthorized from "./pages/Unauthorized";
-import { Layout } from "./components/Layout"; // <--- Importe o Layout
+import { Layout } from "./components/layout/Layout"; // <--- Importe o Layout
 
 function PrivateRoute({ children }) {
   const { currentUser, userProfile, loading } = useAuth();

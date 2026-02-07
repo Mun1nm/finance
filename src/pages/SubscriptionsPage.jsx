@@ -2,10 +2,10 @@ import { useSubscriptions } from "../hooks/useSubscriptions";
 import { ArrowLeft, Play, Pause, Trash2, Calendar, CreditCard, CheckCircle2, XCircle, Pencil, Save, X, TrendingUp, TrendingDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { Notification } from "../components/Notification";
-import { ConfirmModal } from "../components/ConfirmModal";
+import { Notification } from "../components/ui/Notification";
+import { ConfirmModal } from "../components/ui/ConfirmModal";
 import { useWallets } from "../hooks/useWallets";
-import { MoneyInput } from "../components/MoneyInput";
+import { MoneyInput } from "../components/ui/MoneyInput";
 
 export default function SubscriptionsPage() {
   const { subscriptions, toggleSubscription, deleteSubscription, updateSubscription } = useSubscriptions();
