@@ -1,10 +1,12 @@
 import { useState } from "react";
-import { Wallet, ArrowRightLeft, Plus, Star, Trash2, AlertTriangle } from "lucide-react";
+import { Wallet, ArrowRightLeft, Plus, Star, Trash2, AlertTriangle, Clock } from "lucide-react"; // Import Clock
 
 export function WalletManager({ 
   wallets, 
   walletBalances, 
-  overallBalance, // <--- RECEBE O SALDO TOTAL
+  overallBalance, 
+  futureBalance, // <--- NOVO PROP
+  onOpenFutureModal, // <--- NOVO PROP
   onAddWallet, 
   onSetDefault, 
   onDeleteWallet, 
@@ -105,19 +107,31 @@ export function WalletManager({
   return (
     <div className="bg-gray-800 p-4 rounded-xl border border-gray-700">
         
-        {/* CABEÇALHO COM SALDO TOTAL */}
         <div className="flex justify-between items-end mb-4">
             <div className="flex flex-col gap-1">
                 <h3 className="text-gray-400 text-xs font-bold uppercase flex items-center gap-2">
                     <Wallet size={16} /> Minhas Contas
                 </h3>
-                {/* EXIBIÇÃO DO SALDO ACUMULADO */}
-                <div className="flex items-baseline gap-2">
+                
+                {/* SALDO ACUMULADO + FUTURO */}
+                <div className="flex items-center gap-3">
                      <span className="text-2xl font-bold text-white">
                         R$ {overallBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                      </span>
-                     <span className="text-[10px] text-gray-500 font-medium bg-gray-700/50 px-1.5 py-0.5 rounded">Total Acumulado</span>
+                     
+                     {/* BADGE DE FUTURO (Reposicionado aqui) */}
+                     {futureBalance > 0 && (
+                        <button 
+                            onClick={onOpenFutureModal}
+                            className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/40 px-2 py-1 rounded flex items-center gap-1 hover:bg-blue-500/30 transition-colors"
+                            title="Ver recebimentos futuros"
+                        >
+                            <Clock size={12} />
+                            + R$ {futureBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                        </button>
+                     )}
                 </div>
+                <span className="text-[10px] text-gray-500 font-medium">Total Acumulado</span>
             </div>
 
             <div className="flex gap-2">
@@ -154,7 +168,7 @@ export function WalletManager({
             ))}
         </div>
 
-        {/* MODAIS */}
+        {/* MODAIS (Cópia dos modais de Transfer e Create Wallet) */}
         {isWalletModalOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
                 <div className="bg-gray-800 p-6 rounded-2xl w-full max-w-sm border border-gray-700 animate-scale-up">
