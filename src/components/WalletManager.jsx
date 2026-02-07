@@ -1,12 +1,13 @@
 import { useState } from "react";
-import { Wallet, ArrowRightLeft, Plus, Star, Trash2, AlertTriangle, Clock } from "lucide-react"; // Import Clock
+import { Wallet, ArrowRightLeft, Plus, Star, Trash2, AlertTriangle, Clock, CreditCard, ChevronRight, Check } from "lucide-react";
 
 export function WalletManager({ 
   wallets, 
   walletBalances, 
   overallBalance, 
-  futureBalance, // <--- NOVO PROP
-  onOpenFutureModal, // <--- NOVO PROP
+  futureBalance, 
+  transactions, // Recebe transações para listar na fatura
+  onOpenFutureModal, 
   onAddWallet, 
   onSetDefault, 
   onDeleteWallet, 
@@ -18,16 +19,25 @@ export function WalletManager({
   const [transferData, setTransferData] = useState({ from: '', to: '', amount: '', date: new Date().toISOString().split('T')[0] });
   
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
+  
+  // States para Nova Carteira
   const [newWalletName, setNewWalletName] = useState("");
+  const [hasCredit, setHasCredit] = useState(false);
+  const [closingDay, setClosingDay] = useState("1");
+  const [dueDay, setDueDay] = useState("10");
 
   const [walletDeleteData, setWalletDeleteData] = useState(null);
   const [walletDestinyId, setWalletDestinyId] = useState("");
 
+  // States para Fatura
+  const [invoiceModalWallet, setInvoiceModalWallet] = useState(null);
+
   const handleCreateWallet = async (e) => {
     e.preventDefault();
     if (!newWalletName.trim()) return;
-    await onAddWallet(newWalletName);
+    await onAddWallet(newWalletName, hasCredit, closingDay, dueDay);
     setNewWalletName("");
+    setHasCredit(false);
     setIsWalletModalOpen(false);
   };
 
@@ -52,6 +62,33 @@ export function WalletManager({
     
     setIsTransferModalOpen(false);
     setTransferData({ from: '', to: '', amount: '', date: new Date().toISOString().split('T')[0] });
+  };
+
+  const handlePayInvoice = async () => {
+      if (!invoiceModalWallet) return;
+      const { balance, currentInvoice, currentInvoiceDate, id } = invoiceModalWallet;
+
+      if (balance < currentInvoice) {
+          alert("Saldo insuficiente na carteira para pagar a fatura.");
+          return;
+      }
+
+      await onAddTransaction(
+          currentInvoice,
+          "Pagamento de Fatura",
+          "Transferências",
+          "expense",
+          false,
+          `Fatura ${currentInvoiceDate}`,
+          new Date().toISOString().split('T')[0],
+          id, // Wallet ID
+          null, null, null, false, 
+          'debit', // Sai como débito
+          currentInvoiceDate, // Marca qual fatura pagou
+          true // isInvoicePayment
+      );
+
+      setInvoiceModalWallet(null);
   };
 
   const initiateWalletDeletion = (wallet) => {
@@ -113,13 +150,11 @@ export function WalletManager({
                     <Wallet size={16} /> Minhas Contas
                 </h3>
                 
-                {/* SALDO ACUMULADO + FUTURO */}
                 <div className="flex items-center gap-3">
                      <span className="text-2xl font-bold text-white">
                         R$ {overallBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                      </span>
                      
-                     {/* BADGE DE FUTURO (Reposicionado aqui) */}
                      {futureBalance > 0 && (
                         <button 
                             onClick={onOpenFutureModal}
@@ -146,7 +181,7 @@ export function WalletManager({
 
         <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin">
             {walletBalances.map(w => (
-                <div key={w.id} className={`min-w-[150px] p-3 rounded-lg border flex flex-col relative group transition-all ${w.isDefault ? 'bg-blue-900/20 border-blue-500/50' : 'bg-gray-700/30 border-gray-600 hover:border-gray-500'}`}>
+                <div key={w.id} className={`min-w-[160px] p-3 rounded-lg border flex flex-col relative group transition-all ${w.isDefault ? 'bg-blue-900/20 border-blue-500/50' : 'bg-gray-700/30 border-gray-600 hover:border-gray-500'}`}>
                     
                     <div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
                         <button onClick={() => onSetDefault(w.id)} className={`p-1 rounded-full transition-colors hover:bg-gray-700/50 ${w.isDefault ? 'text-yellow-400' : 'text-gray-600 hover:text-yellow-200'}`} title="Definir como Padrão">
@@ -160,15 +195,30 @@ export function WalletManager({
                         )}
                     </div>
 
-                    <span className="text-xs text-gray-400 truncate pr-8 mt-1">{w.name}</span>
+                    <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs text-gray-400 truncate pr-6 font-medium">{w.name}</span>
+                        {w.hasCredit && <CreditCard size={10} className="text-purple-400" />}
+                    </div>
+                    
                     <span className={`font-bold text-sm ${w.balance >= 0 ? 'text-white' : 'text-red-400'}`}>
                         R$ {w.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                     </span>
+
+                    {/* Exibir Fatura se tiver crédito */}
+                    {w.hasCredit && w.currentInvoice > 0 && (
+                        <button 
+                            onClick={() => setInvoiceModalWallet(w)}
+                            className="mt-2 text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 p-1.5 rounded flex items-center justify-between hover:bg-purple-500/30 transition-colors"
+                        >
+                            <span>Fatura Atual</span>
+                            <span className="font-bold">R$ {w.currentInvoice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        </button>
+                    )}
                 </div>
             ))}
         </div>
 
-        {/* MODAIS (Cópia dos modais de Transfer e Create Wallet) */}
+        {/* MODAL NOVA CARTEIRA */}
         {isWalletModalOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
                 <div className="bg-gray-800 p-6 rounded-2xl w-full max-w-sm border border-gray-700 animate-scale-up">
@@ -178,6 +228,30 @@ export function WalletManager({
                             <label className="text-xs text-gray-400">Nome</label>
                             <input type="text" className="w-full bg-gray-700 p-3 rounded-lg text-white" value={newWalletName} onChange={e => setNewWalletName(e.target.value)} required autoFocus />
                         </div>
+                        
+                        {/* TOGGLE CRÉDITO */}
+                        <div className={`p-3 rounded-lg border transition-all ${hasCredit ? 'bg-purple-500/10 border-purple-500' : 'bg-gray-700/30 border-gray-600'}`}>
+                            <div className="flex items-center gap-2 mb-2">
+                                <input type="checkbox" id="creditCheck" checked={hasCredit} onChange={(e) => setHasCredit(e.target.checked)} className="w-4 h-4 rounded text-purple-500 bg-gray-700 border-gray-500 cursor-pointer accent-purple-500" />
+                                <label htmlFor="creditCheck" className="text-sm text-gray-300 cursor-pointer select-none">
+                                    Possui Função Crédito?
+                                </label>
+                            </div>
+                            
+                            {hasCredit && (
+                                <div className="flex gap-2 animate-fade-in">
+                                    <div>
+                                        <label className="text-[10px] text-gray-400">Fechamento (Dia)</label>
+                                        <input type="number" min="1" max="31" value={closingDay} onChange={e => setClosingDay(e.target.value)} className="w-full bg-gray-800 text-white p-2 rounded text-sm border border-gray-600" />
+                                    </div>
+                                    <div>
+                                        <label className="text-[10px] text-gray-400">Vencimento (Dia)</label>
+                                        <input type="number" min="1" max="31" value={dueDay} onChange={e => setDueDay(e.target.value)} className="w-full bg-gray-800 text-white p-2 rounded text-sm border border-gray-600" />
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
                         <div className="flex gap-2 mt-4">
                             <button type="button" onClick={() => setIsWalletModalOpen(false)} className="flex-1 p-2 bg-gray-700 rounded text-gray-300">Cancelar</button>
                             <button type="submit" className="flex-1 p-2 bg-green-600 rounded text-white font-bold">Criar</button>
@@ -187,6 +261,7 @@ export function WalletManager({
             </div>
         )}
 
+        {/* MODAL TRANSFERÊNCIA */}
         {isTransferModalOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
                 <div className="bg-gray-800 p-6 rounded-2xl w-full max-w-sm border border-gray-700 animate-scale-up">
@@ -217,6 +292,7 @@ export function WalletManager({
             </div>
         )}
 
+        {/* MODAL DELETAR */}
         {walletDeleteData && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
                 <div className="bg-gray-800 p-6 rounded-2xl w-full max-w-sm border border-red-500/30 animate-scale-up shadow-2xl">
@@ -250,6 +326,46 @@ export function WalletManager({
                             {walletDestinyId ? "Transferir e Excluir" : "Excluir Tudo"}
                         </button>
                     </div>
+                </div>
+            </div>
+        )}
+
+        {/* MODAL PAGAMENTO DE FATURA */}
+        {invoiceModalWallet && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
+                <div className="bg-gray-800 p-6 rounded-2xl w-full max-w-md border border-purple-500/30 animate-scale-up shadow-2xl">
+                    <div className="flex justify-between items-center mb-4">
+                        <div className="flex items-center gap-2">
+                            <CreditCard className="text-purple-400" />
+                            <h3 className="font-bold text-lg text-white">{invoiceModalWallet.name} - Fatura</h3>
+                        </div>
+                        <button onClick={() => setInvoiceModalWallet(null)} className="text-gray-400 hover:text-white"><Plus size={20} className="rotate-45" /></button>
+                    </div>
+
+                    <div className="mb-6 bg-purple-900/20 p-4 rounded-xl border border-purple-500/30 text-center">
+                        <p className="text-purple-300 text-sm mb-1">Valor da Fatura Aberta</p>
+                        <span className="text-3xl font-bold text-white">R$ {invoiceModalWallet.currentInvoice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                        <p className="text-gray-400 text-xs mt-2">Vence dia {invoiceModalWallet.dueDay}</p>
+                    </div>
+
+                    {/* Lista das despesas da fatura */}
+                    <div className="max-h-[40vh] overflow-y-auto pr-2 mb-4 space-y-2 scrollbar-thin">
+                        {transactions
+                            .filter(t => t.walletId === invoiceModalWallet.id && t.paymentMethod === 'credit' && t.invoiceDate === invoiceModalWallet.currentInvoiceDate)
+                            .map(t => (
+                                <div key={t.id} className="flex justify-between items-center text-sm p-2 bg-gray-700/30 rounded">
+                                    <span className="text-gray-300">{t.description || t.category}</span>
+                                    <span className="text-white font-bold">R$ {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                                </div>
+                            ))}
+                    </div>
+
+                    <button 
+                        onClick={handlePayInvoice}
+                        className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2"
+                    >
+                        <Check size={18} /> Pagar Fatura
+                    </button>
                 </div>
             </div>
         )}

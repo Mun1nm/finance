@@ -57,7 +57,7 @@ export function useTransactions() {
     return new Date(year, month - 1, day, now.getHours(), now.getMinutes());
   };
 
-  const addTransaction = async (amount, category, macro, type = 'expense', isDebt = false, description = "", date = null, walletId = null, subscriptionId = null, assetId = null, personId = null, isFuture = false) => {
+  const addTransaction = async (amount, category, macro, type = 'expense', isDebt = false, description = "", date = null, walletId = null, subscriptionId = null, assetId = null, personId = null, isFuture = false, paymentMethod = 'debit', invoiceDate = null, isInvoicePayment = false) => {
     if (!userProfile?.isAuthorized) return;
     if (!amount) return;
     
@@ -75,7 +75,10 @@ export function useTransactions() {
       walletId: walletId || null,
       subscriptionId: subscriptionId || null,
       assetId: assetId || null,
-      personId: personId || null
+      personId: personId || null,
+      paymentMethod,
+      invoiceDate,
+      isInvoicePayment
     });
   };
 
@@ -97,8 +100,10 @@ export function useTransactions() {
       isDebt: false,
       isFuture: false,
       debtPaid: false,
+      isTransfer: true, // MARCA COMO TRANSFERÊNCIA
       date: transactionDate,
-      walletId: fromWalletId
+      walletId: fromWalletId,
+      paymentMethod: 'debit'
     });
 
     const docRef2 = doc(collection(db, "transactions"));
@@ -112,8 +117,10 @@ export function useTransactions() {
       isDebt: false,
       isFuture: false,
       debtPaid: false,
+      isTransfer: true, // MARCA COMO TRANSFERÊNCIA
       date: transactionDate,
-      walletId: toWalletId
+      walletId: toWalletId,
+      paymentMethod: 'debit'
     });
 
     await batch.commit();
@@ -140,7 +147,7 @@ export function useTransactions() {
     await batch.commit();
   };
 
-  const updateTransaction = async (id, amount, category, macro, type, isDebt, description = "", date = null, walletId = null, isFuture = false) => {
+  const updateTransaction = async (id, amount, category, macro, type, isDebt, description = "", date = null, walletId = null, isFuture = false, paymentMethod = 'debit', invoiceDate = null) => {
     if (!userProfile?.isAuthorized) return;
     const docRef = doc(db, "transactions", id);
     
@@ -152,7 +159,9 @@ export function useTransactions() {
       isDebt,
       isFuture,
       description,
-      walletId: walletId || null
+      walletId: walletId || null,
+      paymentMethod,
+      invoiceDate
     };
 
     if (date) {
@@ -170,13 +179,12 @@ export function useTransactions() {
     });
   };
 
-  // CORREÇÃO AQUI: Atualiza data para HOJE ao confirmar
   const confirmFutureReceipt = async (id) => {
     if (!userProfile?.isAuthorized) return;
     const docRef = doc(db, "transactions", id);
     await updateDoc(docRef, {
       isFuture: false,
-      date: new Date() // Data atual
+      date: new Date()
     });
   };
 

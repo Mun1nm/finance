@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "../services/firebase";
-import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc, writeBatch, getDocs } from "firebase/firestore"; // Adicionei writeBatch e getDocs
+import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc, writeBatch, getDocs } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
 
 export function useWallets() {
@@ -17,7 +17,6 @@ export function useWallets() {
         return;
     }
 
-    // Ordenar para garantir consistência visual? Pode ser no front.
     const q = query(walletsRef, where("uid", "==", currentUser.uid));
     
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -25,7 +24,6 @@ export function useWallets() {
         id: doc.id,
         ...doc.data()
       }));
-      // Ordena: Primeiro a Default, depois por nome
       setWallets(data.sort((a, b) => (b.isDefault === true) - (a.isDefault === true) || a.name.localeCompare(b.name)));
       setLoading(false);
     });
@@ -33,12 +31,16 @@ export function useWallets() {
     return unsubscribe;
   }, [currentUser, userProfile]);
 
-  const addWallet = async (name) => {
+  // ATUALIZADO: Aceita parâmetros de crédito
+  const addWallet = async (name, hasCredit = false, closingDay = null, dueDay = null) => {
     if (!userProfile?.isAuthorized) return;
     await addDoc(walletsRef, {
       uid: currentUser.uid,
       name,
-      isDefault: false, // Padrão false
+      isDefault: false,
+      hasCredit, 
+      closingDay: hasCredit ? parseInt(closingDay) : null,
+      dueDay: hasCredit ? parseInt(dueDay) : null,
       createdAt: new Date()
     });
   };
@@ -48,20 +50,15 @@ export function useWallets() {
     await deleteDoc(doc(db, "wallets", id));
   };
 
-  // NOVA FUNÇÃO: Define a carteira principal
   const setAsDefault = async (walletId) => {
     if (!userProfile?.isAuthorized) return;
     
     const batch = writeBatch(db);
-    
-    // 1. Busca todas as carteiras do usuário
     const q = query(walletsRef, where("uid", "==", currentUser.uid));
     const snapshot = await getDocs(q);
 
-    // 2. Varre todas: Se for a escolhida, põe true. Se não, põe false.
     snapshot.forEach(docSnap => {
         const isTarget = docSnap.id === walletId;
-        // Só gasta operação de escrita se o valor for mudar
         if (docSnap.data().isDefault !== isTarget) {
             batch.update(doc(db, "wallets", docSnap.id), { isDefault: isTarget });
         }

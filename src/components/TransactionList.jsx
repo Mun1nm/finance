@@ -1,17 +1,14 @@
-import { Pencil, Trash2, User, Check, Clock, Calendar, Shapes, ChevronDown, ChevronUp, Wallet, TrendingUp, TrendingDown } from "lucide-react";
+import { Pencil, Trash2, User, Check, Clock, Calendar, Shapes, ChevronDown, ChevronUp, Wallet, TrendingUp, TrendingDown, CreditCard, ArrowRightLeft } from "lucide-react";
 import { useState, useMemo } from "react";
 
 export function TransactionList({ transactions, wallets = [], onEdit, onDelete, onToggleDebt, editingId }) {
   
-  // 1. Estados
-  const [viewMode, setViewMode] = useState("all"); // 'all' ou 'debts'
-  const [groupBy, setGroupBy] = useState("date");  // 'date', 'macro' ou 'wallet'
+  const [viewMode, setViewMode] = useState("all"); 
+  const [groupBy, setGroupBy] = useState("date");  
   const [expandedGroups, setExpandedGroups] = useState({});
 
-  // Contadores
   const pendingDebtsCount = transactions.filter(t => t.isDebt && !t.debtPaid).length;
 
-  // 2. Filtragem Principal
   const filteredData = useMemo(() => {
     if (viewMode === 'debts') {
       return transactions.filter(t => t.isDebt);
@@ -27,8 +24,6 @@ export function TransactionList({ transactions, wallets = [], onEdit, onDelete, 
     );
   }
 
-  // --- HELPERS ---
-
   const toggleGroup = (groupKey) => {
     setExpandedGroups(prev => {
       const currentStatus = prev[groupKey] !== false; 
@@ -36,7 +31,6 @@ export function TransactionList({ transactions, wallets = [], onEdit, onDelete, 
     });
   };
 
-  // Agrupa por Macro Categoria
   const groupTransactionsByMacro = (list) => {
     const groups = list.reduce((acc, t) => {
       const macro = t.macro || "Outros";
@@ -44,14 +38,14 @@ export function TransactionList({ transactions, wallets = [], onEdit, onDelete, 
         acc[macro] = { name: macro, items: [], total: 0, type: t.type };
       }
       acc[macro].items.push(t);
+      
+      // TRANSFERÊNCIA: Somar ou subtrair? Em agrupamento, geralmente somamos volume
       acc[macro].total += t.amount;
       return acc;
     }, {});
-    // Ordena pelo maior valor total
     return Object.values(groups).sort((a, b) => b.total - a.total);
   };
 
-  // Agrupa por Carteira
   const groupTransactionsByWallet = (list) => {
     const groups = list.reduce((acc, t) => {
       const wallet = wallets.find(w => w.id === t.walletId);
@@ -63,7 +57,6 @@ export function TransactionList({ transactions, wallets = [], onEdit, onDelete, 
       
       acc[walletName].items.push(t);
       
-      // Calcula saldo do grupo: Entrada soma, Saída/Invest subtrai
       if (t.type === 'income') {
         acc[walletName].total += t.amount;
       } else {
@@ -76,8 +69,6 @@ export function TransactionList({ transactions, wallets = [], onEdit, onDelete, 
     return Object.values(groups).sort((a, b) => b.total - a.total);
   };
 
-  // --- RENDERIZADORES ---
-
   const renderCard = (t) => {
     let colorClass = 'text-red-400';
     let bgClass = 'bg-red-500/10';
@@ -85,13 +76,23 @@ export function TransactionList({ transactions, wallets = [], onEdit, onDelete, 
     let sign = '-';
     let Icon = TrendingDown;
 
-    if (t.type === 'income') {
+    // ESTILO PARA TRANSFERÊNCIA (Amarelo)
+    if (t.isTransfer) {
+        colorClass = 'text-yellow-400';
+        bgClass = 'bg-yellow-500/10';
+        dotClass = 'bg-yellow-500';
+        // Se for "entrada" na carteira, mostra +, se "saida", mostra -
+        sign = t.type === 'income' ? '+' : '-';
+        Icon = ArrowRightLeft;
+    } 
+    else if (t.type === 'income') {
       colorClass = 'text-green-400';
       bgClass = 'bg-green-500/10';
       dotClass = 'bg-green-500';
       sign = '+';
       Icon = TrendingUp;
-    } else if (t.type === 'investment') {
+    } 
+    else if (t.type === 'investment') {
       colorClass = 'text-purple-400';
       bgClass = 'bg-purple-500/10';
       dotClass = 'bg-purple-500';
@@ -101,6 +102,7 @@ export function TransactionList({ transactions, wallets = [], onEdit, onDelete, 
 
     const isDebtItem = t.isDebt === true;
     const isPaidDebt = isDebtItem && t.debtPaid;
+    const isCredit = t.paymentMethod === 'credit';
 
     return (
       <div key={t.id} className={`flex justify-between items-center bg-gray-800 p-4 rounded-xl border transition-colors group ${editingId === t.id ? 'border-blue-500 bg-blue-500/5' : 'border-gray-700 hover:bg-gray-750'}`}>
@@ -115,13 +117,17 @@ export function TransactionList({ transactions, wallets = [], onEdit, onDelete, 
               {isDebtItem && (
                 <span className={`text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1 border ${isPaidDebt ? 'bg-green-900/30 text-green-500 border-green-800' : 'bg-orange-900/30 text-orange-400 border-orange-800'}`}>
                   {isPaidDebt ? <Check size={10} /> : <User size={10} />}
-                  
-                  {/* LÓGICA DO TEXTO DO BADGE */}
                   {isPaidDebt 
                     ? (t.type === 'expense' ? 'Devolvido' : 'Pago') 
                     : (t.type === 'expense' ? 'A receber' : 'A pagar')
                   }
                 </span>
+              )}
+
+              {isCredit && (
+                  <span className="text-[10px] bg-purple-900/30 text-purple-400 border border-purple-800 px-1.5 py-0.5 rounded flex items-center gap-1">
+                      <CreditCard size={10} /> Crédito
+                  </span>
               )}
             </div>
             {t.description && (
@@ -141,7 +147,6 @@ export function TransactionList({ transactions, wallets = [], onEdit, onDelete, 
                 {sign} R$ {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
              </span>
              
-             {/* LÓGICA DO TEXTO DO BOTÃO */}
              {isDebtItem && !isPaidDebt && (
                 <button 
                     onClick={() => onToggleDebt(t.id, t.debtPaid)} 
@@ -185,6 +190,9 @@ export function TransactionList({ transactions, wallets = [], onEdit, onDelete, 
           const isExpanded = expandedGroups[uniqueGroupKey] !== false; 
 
           let headerColor = "text-gray-300";
+          
+          // ESTILO DO HEADER DO GRUPO (Amarelo se for Transferência)
+          // Mas como grupos misturam tipos, melhor manter neutro ou dinâmico
           if (group.type === 'expense') headerColor = "text-red-400";
           if (group.type === 'income') headerColor = "text-green-400";
           if (group.type === 'investment') headerColor = "text-purple-400";
@@ -227,11 +235,9 @@ export function TransactionList({ transactions, wallets = [], onEdit, onDelete, 
 
   return (
     <div className="space-y-4">
+      {/* ... (Barra de controle igual) ... */}
       
-      {/* BARRA DE CONTROLE */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        
-        {/* Abas (Geral / Reembolsos) */}
         <div className="flex bg-gray-800 p-1 rounded-lg border border-gray-700 w-fit">
           <button 
             onClick={() => setViewMode("all")}
@@ -247,41 +253,30 @@ export function TransactionList({ transactions, wallets = [], onEdit, onDelete, 
           </button>
         </div>
 
-        {/* Agrupamento */}
         <div className="flex items-center gap-2 bg-gray-800 p-1 rounded-lg border border-gray-700 w-fit self-end sm:self-auto">
           <span className="text-[10px] text-gray-500 uppercase font-bold pl-2 hidden sm:block">Agrupar:</span>
-          
           <button onClick={() => setGroupBy("date")} title="Por Data" className={`p-1.5 rounded-md transition-all ${groupBy === 'date' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/50' : 'text-gray-400 hover:bg-gray-700'}`}>
             <Calendar size={16} />
           </button>
-          
           <button onClick={() => setGroupBy("macro")} title="Por Categoria" className={`p-1.5 rounded-md transition-all ${groupBy === 'macro' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/50' : 'text-gray-400 hover:bg-gray-700'}`}>
             <Shapes size={16} />
           </button>
-
           <button onClick={() => setGroupBy("wallet")} title="Por Carteira" className={`p-1.5 rounded-md transition-all ${groupBy === 'wallet' ? 'bg-blue-600/20 text-blue-400 border border-blue-500/50' : 'text-gray-400 hover:bg-gray-700'}`}>
             <Wallet size={16} />
           </button>
         </div>
       </div>
       
-      {/* --- CONTEÚDO --- */}
+      {viewMode === 'all' && renderListOrGroups(filteredData, "all")}
 
-      {/* MODO GERAL */}
-      {viewMode === 'all' && (
-        renderListOrGroups(filteredData, "all")
-      )}
-
-      {/* MODO REEMBOLSOS (Mantido intacto, agora suporta agrupamento também) */}
+      {/* MODO REEMBOLSOS (Sem alterações) */}
       {viewMode === "debts" && (
         <div className="space-y-6">
            {(() => {
               const pendingDebts = filteredData.filter(t => !t.debtPaid);
               const solvedDebts = filteredData.filter(t => t.debtPaid);
-              
               return (
                 <>
-                  {/* SEÇÃO 1: PENDENTES */}
                   <div>
                     <h4 className="text-orange-400 text-xs font-bold uppercase mb-2 flex items-center gap-2">
                       <Clock size={14} /> Pendentes ({pendingDebts.length})
@@ -291,8 +286,6 @@ export function TransactionList({ transactions, wallets = [], onEdit, onDelete, 
                       : renderListOrGroups(pendingDebts, "pending")
                     }
                   </div>
-
-                  {/* SEÇÃO 2: RESOLVIDOS */}
                   {solvedDebts.length > 0 && (
                     <div className="pt-4 border-t border-gray-800">
                       <h4 className="text-green-500 text-xs font-bold uppercase mb-2 flex items-center gap-2">
@@ -303,7 +296,6 @@ export function TransactionList({ transactions, wallets = [], onEdit, onDelete, 
                       </div>
                     </div>
                   )}
-
                   {filteredData.length === 0 && (
                     <div className="text-center py-8 text-gray-500">
                        Nenhum registro de reembolso neste mês.

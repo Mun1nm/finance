@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { RefreshCw, Pencil, X, User, TrendingUp, Calendar, Plus, Clock, Wallet } from "lucide-react"; // Importei Wallet
+import { RefreshCw, Pencil, X, User, TrendingUp, Calendar, Plus, Clock, Wallet, CreditCard } from "lucide-react";
 import { MoneyInput } from "./MoneyInput";
 import { useNavigate } from "react-router-dom";
 import { usePeople } from "../hooks/usePeople";
@@ -20,9 +20,16 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
   const [selectedWallet, setSelectedWallet] = useState("");
   const [selectedPerson, setSelectedPerson] = useState("");
   
+  // NOVOS STATES
+  const [paymentMethod, setPaymentMethod] = useState("debit"); // 'debit' or 'credit'
+  
   const [dueDay, setDueDay] = useState(new Date().getDate());
   const [isAddingPerson, setIsAddingPerson] = useState(false);
   const [newPersonName, setNewPersonName] = useState("");
+
+  // Verifica se a carteira selecionada tem crédito
+  const currentWallet = wallets.find(w => w.id === selectedWallet);
+  const hasCredit = currentWallet?.hasCredit;
 
   useEffect(() => {
     if (initialData) {
@@ -50,6 +57,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       setIsFuture(initialData.isFuture || false);
       setSelectedWallet(initialData.walletId || "");
       setSelectedPerson(initialData.personId || "");
+      setPaymentMethod(initialData.paymentMethod || "debit"); // Carrega método
       setDueDay(new Date().getDate());
 
     } else {
@@ -61,6 +69,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       setIsDebt(false);
       setIsFuture(false);
       setSelectedPerson("");
+      setPaymentMethod("debit");
       setDueDay(new Date().getDate());
       
       if (wallets && wallets.length > 0) {
@@ -73,6 +82,11 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       }
     }
   }, [initialData, categories, assets, wallets]);
+
+  // Reseta para débito se mudar para Investment ou Income
+  useEffect(() => {
+      if (type !== 'expense') setPaymentMethod("debit");
+  }, [type]);
 
   const availableCategories = categories.filter(c => (c.type || 'expense') === type);
 
@@ -97,6 +111,28 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
         return;
     }
 
+    // CÁLCULO DA DATA DA FATURA (INVOICE DATE)
+    let finalInvoiceDate = null;
+    if (type === 'expense' && paymentMethod === 'credit' && currentWallet) {
+        const closing = currentWallet.closingDay;
+        const [yearStr, monthStr, dayStr] = date.split('-');
+        const tDay = parseInt(dayStr);
+        let tMonth = parseInt(monthStr) - 1; // JS Month é 0-11
+        let tYear = parseInt(yearStr);
+
+        // Se comprou APÓS o fechamento, joga para o próximo mês
+        if (tDay > closing) {
+            tMonth++;
+            if (tMonth > 11) {
+                tMonth = 0;
+                tYear++;
+            }
+        }
+        
+        // Formato YYYY-MM
+        finalInvoiceDate = `${tYear}-${String(tMonth + 1).padStart(2, '0')}`;
+    }
+
     let submitData = {
       amount,
       type,
@@ -107,7 +143,9 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       isFuture,
       walletId: selectedWallet,
       personId: isDebt ? selectedPerson : null,
-      dueDay: isSubscription ? dueDay : null 
+      dueDay: isSubscription ? dueDay : null,
+      paymentMethod: type === 'expense' ? paymentMethod : 'debit',
+      invoiceDate: finalInvoiceDate
     };
 
     if (type === 'investment') {
@@ -131,6 +169,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
         setIsDebt(false);
         setIsFuture(false);
         setSelectedPerson("");
+        setPaymentMethod("debit");
         setDueDay(new Date().getDate());
     }
   };
@@ -161,7 +200,6 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
 
         {wallets && wallets.length > 0 && (
            <div className="relative">
-              {/* Ícone de Wallet Leading */}
               <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
                 <Wallet size={16} />
               </div>
@@ -180,11 +218,30 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
                  ))}
               </select>
               
-              {/* Ícone de Seta Trailing */}
               <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
                 <TrendingUp size={14} className="rotate-90"/>
               </div>
            </div>
+        )}
+
+        {/* SELETOR DE DÉBITO / CRÉDITO (Só aparece se for Saída e a carteira tiver crédito) */}
+        {type === 'expense' && hasCredit && !isSubscription && (
+            <div className="flex gap-2 bg-gray-700/50 p-1 rounded-lg border border-gray-600">
+                <button
+                    type="button"
+                    onClick={() => setPaymentMethod("debit")}
+                    className={`flex-1 py-2 rounded text-xs font-bold transition-all flex items-center justify-center gap-2 ${paymentMethod === 'debit' ? 'bg-gray-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                >
+                    <Wallet size={14} /> Débito (Agora)
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setPaymentMethod("credit")}
+                    className={`flex-1 py-2 rounded text-xs font-bold transition-all flex items-center justify-center gap-2 ${paymentMethod === 'credit' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                >
+                    <CreditCard size={14} /> Crédito (Fatura)
+                </button>
+            </div>
         )}
 
         <div className="flex flex-col sm:flex-row gap-2">
@@ -259,7 +316,6 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
               )}
             </div>
 
-            {/* CHECKBOX RECEBIMENTO FUTURO (Apenas para Entradas e se não for assinatura) */}
             {type === 'income' && !isSubscription && !isDebt && (
                <div className={`flex items-center gap-2 p-3 rounded-lg border transition-colors ${isFuture ? 'bg-blue-500/20 border-blue-500' : 'bg-gray-700/50 border-gray-600'}`}>
                    <input type="checkbox" id="futureCheck" checked={isFuture} onChange={(e) => setIsFuture(e.target.checked)} className="w-5 h-5 rounded text-blue-500 bg-gray-700 border-gray-500 cursor-pointer accent-blue-500" />
@@ -269,7 +325,6 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
                </div>
             )}
 
-            {/* CHECKBOX DÍVIDA (Expense ou Income, mas não Future) */}
             {(type === 'expense' || type === 'income') && !isSubscription && !isFuture && (
                <div className={`p-3 rounded-lg border transition-colors ${isDebt ? 'bg-orange-500/20 border-orange-500' : 'bg-gray-700/50 border-gray-600'}`}>
                    <div className="flex items-center gap-2 mb-2">

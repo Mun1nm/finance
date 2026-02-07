@@ -50,25 +50,37 @@ export default function Dashboard() {
            tDate.getFullYear() === currentDate.getFullYear();
   });
 
+  // 1. SALDO MENSAL: Ignora Transferências e Futuros
   const monthlyBalance = filteredTransactions.reduce((acc, t) => {
-    if (t.isFuture) return acc; 
+    if (t.isFuture) return acc;
+    if (t.isTransfer) return acc; // IGNORA TRANSFERÊNCIA NO TOTAL
+    
     if (t.type === 'income') return acc + t.amount;
+    
     if (t.type === 'expense') {
+        if (t.isInvoicePayment) return acc;
         if (t.isDebt && t.debtPaid) return acc;
         return acc - t.amount;
     }
+    
     if (t.type === 'investment') return acc - t.amount;
     return acc;
   }, 0);
 
   const overallBalance = transactions.reduce((acc, t) => {
-    if (t.isFuture) return acc; 
+    if (t.isFuture) return acc;
+    if (t.isTransfer) return acc; // IGNORA TRANSFERÊNCIA NO ACUMULADO GERAL (Anula mesmo, mas garante)
+    
     if (t.date && t.date.seconds * 1000 > new Date().getTime()) return acc;
+    
     if (t.type === 'income') return acc + t.amount;
+    
     if (t.type === 'expense') {
       if (t.isDebt && t.debtPaid) return acc;
+      if (t.paymentMethod === 'credit') return acc;
       return acc - t.amount;
     } 
+    
     if (t.type === 'investment') return acc - t.amount;
     return acc;
   }, 0);
@@ -76,6 +88,7 @@ export default function Dashboard() {
   const futureTransactions = transactions.filter(t => t.isFuture && t.type === 'income');
   const futureBalance = futureTransactions.reduce((acc, t) => acc + t.amount, 0);
 
+  // Carteiras PRECISAM contar transferência para bater o saldo
   const walletBalances = wallets.map(w => {
     const balance = transactions
       .filter(t => t.walletId === w.id)
@@ -83,18 +96,49 @@ export default function Dashboard() {
       .filter(t => t.date && t.date.seconds * 1000 <= new Date().getTime())
       .reduce((acc, t) => {
          if (t.type === 'income') return acc + t.amount;
-         if (t.type === 'expense' || t.type === 'investment') return acc - t.amount;
+         if (t.type === 'expense' || t.type === 'investment') {
+             if (t.paymentMethod === 'credit') return acc;
+             return acc - t.amount;
+         }
          return acc;
       }, 0);
-    return { ...w, balance };
+
+    let currentInvoice = 0;
+    let currentInvoiceDate = "";
+    
+    if (w.hasCredit) {
+        const today = new Date();
+        const closing = w.closingDay;
+        const currentDay = today.getDate();
+        let targetMonth = today.getMonth();
+        let targetYear = today.getFullYear();
+
+        if (currentDay > closing) {
+            targetMonth++;
+            if (targetMonth > 11) { targetMonth = 0; targetYear++; }
+        }
+        currentInvoiceDate = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`;
+
+        const invoiceTotal = transactions
+            .filter(t => t.walletId === w.id && t.paymentMethod === 'credit' && t.invoiceDate === currentInvoiceDate)
+            .reduce((acc, t) => acc + t.amount, 0);
+        
+        const invoicePaid = transactions
+            .filter(t => t.walletId === w.id && t.isInvoicePayment && t.invoiceDate === currentInvoiceDate)
+            .reduce((acc, t) => acc + t.amount, 0);
+
+        currentInvoice = Math.max(0, invoiceTotal - invoicePaid);
+    }
+
+    return { ...w, balance, currentInvoice, currentInvoiceDate };
   });
 
   const handleFormSubmit = async (formData) => {
-    const { amount, categoryName, macro, type, isSubscription, isDebt, description, assetId, date, walletId, dueDay, personId, isFuture } = formData;
+    const { amount, categoryName, macro, type, isSubscription, isDebt, description, assetId, date, walletId, dueDay, personId, isFuture, paymentMethod, invoiceDate } = formData;
     const todayDay = new Date().getDate();
 
     if (editingData) {
-      await updateTransaction(editingData.id, amount, categoryName, macro, type, isDebt, description, date, walletId, isFuture);
+      await updateTransaction(editingData.id, amount, categoryName, macro, type, isDebt, description, date, walletId, isFuture, paymentMethod, invoiceDate);
       if (editingData.subscriptionId) {
          try {
            await updateSubscription(editingData.subscriptionId, {
@@ -114,7 +158,7 @@ export default function Dashboard() {
       const shouldProcessNow = !isSubscription || (isSubscription && dueDay <= todayDay);
       if (shouldProcessNow) {
           if (type === 'investment' && assetId) await addContribution(assetId, amount);
-          await addTransaction(amount, categoryName, macro, type, isDebt, description, date, walletId, null, assetId, personId, isFuture);
+          await addTransaction(amount, categoryName, macro, type, isDebt, description, date, walletId, null, assetId, personId, isFuture, paymentMethod, invoiceDate);
       }
       if (isSubscription) {
         await createSubscription(amount, categoryName, macro, categoryName, type, dueDay, walletId, shouldProcessNow);
@@ -162,13 +206,19 @@ export default function Dashboard() {
       </div>
 
       <div className="space-y-6">
-        <Summary transactions={filteredTransactions} assets={assets} totalBalance={monthlyBalance} />
+        {/* Passa lista sem transferências para o resumo */}
+        <Summary 
+            transactions={filteredTransactions.filter(t => !t.isTransfer)} 
+            assets={assets} 
+            totalBalance={monthlyBalance} 
+        />
 
         <WalletManager 
             wallets={wallets}
             walletBalances={walletBalances}
             overallBalance={overallBalance} 
             futureBalance={futureBalance} 
+            transactions={transactions}
             onOpenFutureModal={() => setFutureModalOpen(true)}
             onAddWallet={addWallet}
             onSetDefault={setAsDefault}
@@ -198,10 +248,21 @@ export default function Dashboard() {
                     </div>
                 </div>
                 <div className="h-80 w-full">
-                    <CategoryChart transactions={filteredTransactions.filter(t => t.type === chartType && !t.isFuture)} mode={chartMode} type={chartType} />
+                    {/* Filtra Transferências e Faturas do Gráfico */}
+                    <CategoryChart 
+                        transactions={filteredTransactions.filter(t => 
+                            t.type === chartType && 
+                            !t.isFuture && 
+                            !t.isInvoicePayment && 
+                            !t.isTransfer // Remove Transferências
+                        )} 
+                        mode={chartMode} 
+                        type={chartType} 
+                    />
                 </div>
             </div>
             
+            {/* Lista mostra tudo para conferência */}
             <TransactionList 
                 transactions={filteredTransactions.filter(t => !t.isFuture)} 
                 wallets={wallets} 
@@ -214,14 +275,13 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* MODAL DE RECEBIMENTOS FUTUROS (CORRIGIDO) */}
       {futureModalOpen && (
         <div 
-            onClick={() => setFutureModalOpen(false)} // FECHAR AO CLICAR FORA
+            onClick={() => setFutureModalOpen(false)}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in"
         >
            <div 
-                onClick={(e) => e.stopPropagation()} // IMPEDIR QUE CLIQUE DENTRO FECHE
+                onClick={(e) => e.stopPropagation()} 
                 className="bg-gray-800 p-6 rounded-2xl w-full max-w-md border border-gray-700 animate-scale-up shadow-2xl"
            >
               <div className="flex justify-between items-center mb-6">

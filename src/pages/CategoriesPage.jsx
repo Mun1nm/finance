@@ -5,15 +5,13 @@ import { useNavigate } from "react-router-dom";
 
 const EXPENSE_MACROS = [
   "Moradia", "Alimentação", "Transporte", "Lazer", 
-  "Saúde", "Educação", "Assinaturas", "Compras", "Pai", "Mãe", "Outros"
+  "Saúde", "Educação", "Assinaturas", "Compras", "Outros"
 ];
 
 const INCOME_MACROS = [
   "Salário", "Freelance", "Investimentos (Retorno)", "Presentes", 
-  "Reembolso", "Vendas", "Outros"
+  "Reembolso", "Vendas", "Premiação", "Outros"
 ];
-
-// REMOVIDO: const INVESTMENT_MACROS ...
 
 export default function CategoriesPage() {
   const { categories, addCategory, deleteCategory, updateCategory } = useCategories();
