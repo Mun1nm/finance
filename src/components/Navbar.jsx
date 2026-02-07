@@ -1,7 +1,7 @@
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { 
-  LogOut, Settings, TrendingUp, RefreshCw, LayoutDashboard 
+  LogOut, Settings, TrendingUp, RefreshCw, LayoutDashboard, Users 
 } from "lucide-react";
 
 export function Navbar() {
@@ -25,7 +25,7 @@ export function Navbar() {
       </button>
 
       {/* Navegação Central */}
-      <nav className="flex gap-1 bg-gray-900/50 p-1 rounded-xl border border-gray-700/50">
+      <nav className="flex gap-1 bg-gray-900/50 p-1 rounded-xl border border-gray-700/50 overflow-x-auto">
         <button 
             onClick={() => navigate("/")} 
             className={`p-2 rounded-lg transition-all ${isActive("/")}`} 
@@ -48,6 +48,15 @@ export function Navbar() {
             title="Investimentos"
         >
             <TrendingUp size={20} />
+        </button>
+
+        {/* NOVO BOTÃO DE PESSOAS */}
+        <button 
+            onClick={() => navigate("/people")} 
+            className={`p-2 rounded-lg transition-all ${isActive("/people")}`} 
+            title="Pessoas & Dívidas"
+        >
+            <Users size={20} />
         </button>
 
         <button 

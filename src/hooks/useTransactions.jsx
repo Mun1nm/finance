@@ -57,7 +57,7 @@ export function useTransactions() {
     return new Date(year, month - 1, day, now.getHours(), now.getMinutes());
   };
 
-  const addTransaction = async (amount, category, macro, type = 'expense', isDebt = false, description = "", date = null, walletId = null, subscriptionId = null, assetId = null) => {
+  const addTransaction = async (amount, category, macro, type = 'expense', isDebt = false, description = "", date = null, walletId = null, subscriptionId = null, assetId = null, personId = null) => {
     if (!userProfile?.isAuthorized) return;
     if (!amount) return;
     
@@ -73,7 +73,8 @@ export function useTransactions() {
       date: parseDate(date),
       walletId: walletId || null,
       subscriptionId: subscriptionId || null,
-      assetId: assetId || null
+      assetId: assetId || null,
+      personId: personId || null
     });
   };
 

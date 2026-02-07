@@ -49,7 +49,6 @@ export default function Dashboard() {
            tDate.getFullYear() === currentDate.getFullYear();
   });
 
-  // 1. CÁLCULO DO SALDO DO MÊS (Novo foco do Summary)
   const monthlyBalance = filteredTransactions.reduce((acc, t) => {
     if (t.type === 'income') return acc + t.amount;
     if (t.type === 'expense') {
@@ -60,7 +59,6 @@ export default function Dashboard() {
     return acc;
   }, 0);
 
-  // 2. CÁLCULO DO SALDO GERAL ACUMULADO (Antigo overallBalance)
   const overallBalance = transactions.reduce((acc, t) => {
     if (t.date && t.date.seconds * 1000 > new Date().getTime()) return acc;
     if (t.type === 'income') return acc + t.amount;
@@ -85,7 +83,8 @@ export default function Dashboard() {
   });
 
   const handleFormSubmit = async (formData) => {
-    const { amount, categoryName, macro, type, isSubscription, isDebt, description, assetId, date, walletId, dueDay } = formData;
+    // CORREÇÃO AQUI: Adicionei 'personId' na extração dos dados
+    const { amount, categoryName, macro, type, isSubscription, isDebt, description, assetId, date, walletId, dueDay, personId } = formData;
     const todayDay = new Date().getDate();
 
     if (editingData) {
@@ -109,7 +108,9 @@ export default function Dashboard() {
       const shouldProcessNow = !isSubscription || (isSubscription && dueDay <= todayDay);
       if (shouldProcessNow) {
           if (type === 'investment' && assetId) await addContribution(assetId, amount);
-          await addTransaction(amount, categoryName, macro, type, isDebt, description, date, walletId, null, assetId);
+          
+          // CORREÇÃO AQUI: Passei 'personId' como o último argumento
+          await addTransaction(amount, categoryName, macro, type, isDebt, description, date, walletId, null, assetId, personId);
       }
       if (isSubscription) {
         await createSubscription(amount, categoryName, macro, categoryName, type, dueDay, walletId, shouldProcessNow);
@@ -152,18 +153,16 @@ export default function Dashboard() {
       </div>
 
       <div className="space-y-6">
-        {/* AGORA PASSA O MENSAL PARA O SUMMARY */}
         <Summary 
           transactions={filteredTransactions} 
           assets={assets} 
           totalBalance={monthlyBalance} 
         />
 
-        {/* AGORA PASSA O TOTAL GERAL PARA O WALLET MANAGER */}
         <WalletManager 
             wallets={wallets}
             walletBalances={walletBalances}
-            overallBalance={overallBalance} // <--- NOVO PROP
+            overallBalance={overallBalance} 
             onAddWallet={addWallet}
             onSetDefault={setAsDefault}
             onDeleteWallet={deleteWallet}
