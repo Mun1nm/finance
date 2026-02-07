@@ -25,7 +25,7 @@ export default function Dashboard() {
 
   const [currentDate, setCurrentDate] = useState(new Date()); 
   const [chartMode, setChartMode] = useState("macro");
-  const [chartType, setChartType] = useState("expense"); // Estado do Switch (income/expense)
+  const [chartType, setChartType] = useState("expense"); 
   const [editingData, setEditingData] = useState(null);
   const [notification, setNotification] = useState(null);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null });
@@ -49,6 +49,18 @@ export default function Dashboard() {
            tDate.getFullYear() === currentDate.getFullYear();
   });
 
+  // 1. CÁLCULO DO SALDO DO MÊS (Novo foco do Summary)
+  const monthlyBalance = filteredTransactions.reduce((acc, t) => {
+    if (t.type === 'income') return acc + t.amount;
+    if (t.type === 'expense') {
+        if (t.isDebt && t.debtPaid) return acc;
+        return acc - t.amount;
+    }
+    if (t.type === 'investment') return acc - t.amount;
+    return acc;
+  }, 0);
+
+  // 2. CÁLCULO DO SALDO GERAL ACUMULADO (Antigo overallBalance)
   const overallBalance = transactions.reduce((acc, t) => {
     if (t.date && t.date.seconds * 1000 > new Date().getTime()) return acc;
     if (t.type === 'income') return acc + t.amount;
@@ -140,12 +152,18 @@ export default function Dashboard() {
       </div>
 
       <div className="space-y-6">
-        <Summary transactions={filteredTransactions} assets={assets} totalBalance={overallBalance} />
+        {/* AGORA PASSA O MENSAL PARA O SUMMARY */}
+        <Summary 
+          transactions={filteredTransactions} 
+          assets={assets} 
+          totalBalance={monthlyBalance} 
+        />
 
-        {/* SECTION CARTEIRAS (MODULARIZADO) */}
+        {/* AGORA PASSA O TOTAL GERAL PARA O WALLET MANAGER */}
         <WalletManager 
             wallets={wallets}
             walletBalances={walletBalances}
+            overallBalance={overallBalance} // <--- NOVO PROP
             onAddWallet={addWallet}
             onSetDefault={setAsDefault}
             onDeleteWallet={deleteWallet}
@@ -153,62 +171,32 @@ export default function Dashboard() {
             onAddTransaction={addTransaction}
         />
 
-        {/* Transações */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           <div className="lg:col-span-5 relative lg:sticky lg:top-24 z-0">
             <TransactionForm onSubmit={handleFormSubmit} categories={categories} assets={assets} wallets={wallets} initialData={editingData} onCancelEdit={() => setEditingData(null)} />
           </div>
           
           <div className="lg:col-span-7 space-y-6">
-            
-            {/* CARD DO GRÁFICO */}
             <div className="bg-gray-800 rounded-2xl border border-gray-700 p-4 relative z-0">
                 <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3">
                     <h3 className="text-gray-400 text-sm font-bold uppercase self-start sm:self-center">Análise</h3>
-                    
                     <div className="flex gap-3">
-                        {/* Switch de TIPO (Entradas/Saídas) */}
                         <div className="flex bg-gray-700 rounded-lg p-1">
-                            <button 
-                                onClick={() => setChartType("income")} 
-                                className={`p-1.5 px-3 rounded text-xs font-bold flex items-center gap-1 transition-all ${chartType === 'income' ? 'bg-green-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
-                            >
-                                <TrendingUp size={14}/> Entradas
-                            </button>
-                            <button 
-                                onClick={() => setChartType("expense")} 
-                                className={`p-1.5 px-3 rounded text-xs font-bold flex items-center gap-1 transition-all ${chartType === 'expense' ? 'bg-red-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
-                            >
-                                <TrendingDown size={14}/> Saídas
-                            </button>
+                            <button onClick={() => setChartType("income")} className={`p-1.5 px-3 rounded text-xs font-bold flex items-center gap-1 transition-all ${chartType === 'income' ? 'bg-green-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}><TrendingUp size={14}/> Entradas</button>
+                            <button onClick={() => setChartType("expense")} className={`p-1.5 px-3 rounded text-xs font-bold flex items-center gap-1 transition-all ${chartType === 'expense' ? 'bg-red-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}><TrendingDown size={14}/> Saídas</button>
                         </div>
-
-                        {/* Switch de MODO (Macro/Categoria) */}
                         <div className="flex bg-gray-700 rounded-lg p-1">
                             <button onClick={() => setChartMode("macro")} className={`p-1.5 rounded transition-all ${chartMode === 'macro' ? 'bg-gray-600 text-white shadow' : 'text-gray-400'}`}><PieChart size={16}/></button>
                             <button onClick={() => setChartMode("category")} className={`p-1.5 rounded transition-all ${chartMode === 'category' ? 'bg-gray-600 text-white shadow' : 'text-gray-400'}`}><BarChart3 size={16}/></button>
                         </div>
                     </div>
                 </div>
-                
-                {/* CORREÇÃO DO WARNING: Div com altura fixa envolvendo o componente */}
                 <div className="h-80 w-full">
-                    <CategoryChart 
-                        transactions={filteredTransactions.filter(t => t.type === chartType)} 
-                        mode={chartMode} 
-                        type={chartType} // Passando o tipo para o componente saber o texto certo
-                    />
+                    <CategoryChart transactions={filteredTransactions.filter(t => t.type === chartType)} mode={chartMode} type={chartType} />
                 </div>
             </div>
             
-            <TransactionList 
-                transactions={filteredTransactions} 
-                wallets={wallets} 
-                onEdit={setEditingData} 
-                onDelete={(id) => setDeleteModal({ isOpen: true, id })} 
-                onToggleDebt={toggleDebtStatus} 
-                editingId={editingData?.id} 
-            />
+            <TransactionList transactions={filteredTransactions} wallets={wallets} onEdit={setEditingData} onDelete={(id) => setDeleteModal({ isOpen: true, id })} onToggleDebt={toggleDebtStatus} editingId={editingData?.id} />
           </div>
         </div>
       </div>

@@ -4,6 +4,7 @@ import { Wallet, ArrowRightLeft, Plus, Star, Trash2, AlertTriangle } from "lucid
 export function WalletManager({ 
   wallets, 
   walletBalances, 
+  overallBalance, // <--- RECEBE O SALDO TOTAL
   onAddWallet, 
   onSetDefault, 
   onDeleteWallet, 
@@ -30,14 +31,11 @@ export function WalletManager({
 
   const handleTransfer = async (e) => {
     e.preventDefault();
-    
-    // Busca as carteiras selecionadas
     const fromWallet = wallets.find(w => w.id === transferData.from);
     const toWallet = wallets.find(w => w.id === transferData.to);
     
-    // CORREÇÃO: Verifica se as carteiras foram encontradas antes de prosseguir
     if (!fromWallet || !toWallet) {
-        alert("Por favor, selecione as carteiras de origem e destino.");
+        alert("Selecione as carteiras de origem e destino.");
         return;
     }
     
@@ -46,8 +44,8 @@ export function WalletManager({
         transferData.from, 
         transferData.to, 
         transferData.date, 
-        fromWallet.name, // Agora seguro
-        toWallet.name    // Agora seguro
+        fromWallet.name, 
+        toWallet.name
     );
     
     setIsTransferModalOpen(false);
@@ -71,7 +69,6 @@ export function WalletManager({
         if (Math.abs(balance) > 0.01) {
             if (walletDestinyId) {
                 const destinyWallet = wallets.find(w => w.id === walletDestinyId);
-                // Proteção extra caso destinyWallet não seja encontrado (embora improvável aqui)
                 const destinyName = destinyWallet ? destinyWallet.name : "Desconhecida";
 
                 await onTransfer(
@@ -107,15 +104,27 @@ export function WalletManager({
 
   return (
     <div className="bg-gray-800 p-4 rounded-xl border border-gray-700">
-        <div className="flex justify-between items-center mb-4">
-            <h3 className="text-gray-400 text-xs font-bold uppercase flex items-center gap-2">
-                <Wallet size={16} /> Minhas Contas
-            </h3>
+        
+        {/* CABEÇALHO COM SALDO TOTAL */}
+        <div className="flex justify-between items-end mb-4">
+            <div className="flex flex-col gap-1">
+                <h3 className="text-gray-400 text-xs font-bold uppercase flex items-center gap-2">
+                    <Wallet size={16} /> Minhas Contas
+                </h3>
+                {/* EXIBIÇÃO DO SALDO ACUMULADO */}
+                <div className="flex items-baseline gap-2">
+                     <span className="text-2xl font-bold text-white">
+                        R$ {overallBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                     </span>
+                     <span className="text-[10px] text-gray-500 font-medium bg-gray-700/50 px-1.5 py-0.5 rounded">Total Acumulado</span>
+                </div>
+            </div>
+
             <div className="flex gap-2">
-                <button onClick={() => setIsTransferModalOpen(true)} className="text-xs bg-blue-600/20 text-blue-400 px-3 py-1.5 rounded-lg border border-blue-500/50 flex items-center gap-1 hover:bg-blue-600/30">
+                <button onClick={() => setIsTransferModalOpen(true)} className="text-xs bg-blue-600/20 text-blue-400 px-3 py-2 rounded-lg border border-blue-500/50 flex items-center gap-1 hover:bg-blue-600/30">
                     <ArrowRightLeft size={14} /> Transferir
                 </button>
-                <button onClick={() => setIsWalletModalOpen(true)} className="text-xs bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-gray-600">
+                <button onClick={() => setIsWalletModalOpen(true)} className="text-xs bg-gray-700 text-gray-300 px-3 py-2 rounded-lg flex items-center gap-1 hover:bg-gray-600">
                     <Plus size={14} /> Nova
                 </button>
             </div>
@@ -145,6 +154,7 @@ export function WalletManager({
             ))}
         </div>
 
+        {/* MODAIS */}
         {isWalletModalOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
                 <div className="bg-gray-800 p-6 rounded-2xl w-full max-w-sm border border-gray-700 animate-scale-up">
@@ -170,7 +180,6 @@ export function WalletManager({
                     <form onSubmit={handleTransfer} className="space-y-4">
                         <div>
                             <label className="text-xs text-gray-400">De</label>
-                            {/* CORREÇÃO: Adicionada opção padrão para evitar estado vazio inválido */}
                             <select className="w-full bg-gray-700 p-2 rounded text-white" value={transferData.from} onChange={e => setTransferData({...transferData, from: e.target.value})} required>
                                 <option value="">Selecione...</option>
                                 {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
@@ -178,7 +187,6 @@ export function WalletManager({
                         </div>
                         <div>
                             <label className="text-xs text-gray-400">Para</label>
-                            {/* CORREÇÃO: Adicionada opção padrão */}
                             <select className="w-full bg-gray-700 p-2 rounded text-white" value={transferData.to} onChange={e => setTransferData({...transferData, to: e.target.value})} required>
                                 <option value="">Selecione...</option>
                                 {wallets.filter(w => w.id !== transferData.from).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
