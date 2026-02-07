@@ -5,20 +5,21 @@ import { useCategories } from "../hooks/useCategories";
 import { useSubscriptions } from "../hooks/useSubscriptions";
 import { useInvestments } from "../hooks/useInvestments"; 
 import { useWallets } from "../hooks/useWallets"; 
-import { ChevronLeft, ChevronRight, BarChart3, PieChart, Wallet, ArrowRightLeft, Plus, Star } from "lucide-react";
+import { ChevronLeft, ChevronRight, BarChart3, PieChart } from "lucide-react";
 import { Summary } from "../components/Summary";
 import { CategoryChart } from "../components/CategoryChart";
 import { ConfirmModal } from "../components/ConfirmModal";
 import { Notification } from "../components/Notification";
 import { TransactionForm } from "../components/TransactionForm";
 import { TransactionList } from "../components/TransactionList";
+import { WalletManager } from "../components/WalletManager"; // <--- NOVO IMPORT
 import { useNavigate } from "react-router-dom";
 
 export default function Dashboard() {
   const { transactions, addTransaction, deleteTransaction, updateTransaction, toggleDebtStatus, addTransfer } = useTransactions();
   const { categories } = useCategories();
   const { assets, addContribution, removeContribution } = useInvestments();
-  const { wallets, addWallet, setAsDefault } = useWallets(); 
+  const { wallets, addWallet, setAsDefault, deleteWallet } = useWallets(); 
   const { createSubscription, processSubscriptions, updateSubscription } = useSubscriptions();
   const navigate = useNavigate();
 
@@ -27,12 +28,6 @@ export default function Dashboard() {
   const [editingData, setEditingData] = useState(null);
   const [notification, setNotification] = useState(null);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null });
-
-  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
-  const [transferData, setTransferData] = useState({ from: '', to: '', amount: '', date: new Date().toISOString().split('T')[0] });
-
-  const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
-  const [newWalletName, setNewWalletName] = useState("");
 
   const hasProcessedSubscriptions = useRef(false);
 
@@ -64,6 +59,7 @@ export default function Dashboard() {
     return acc;
   }, 0);
 
+  // O cálculo de saldo ainda fica aqui pois depende de transactions, que pertence à Dashboard
   const walletBalances = wallets.map(w => {
     const balance = transactions
       .filter(t => t.walletId === w.id)
@@ -112,25 +108,6 @@ export default function Dashboard() {
     }
   };
 
-  const handleTransfer = async (e) => {
-    e.preventDefault();
-    const fromWallet = wallets.find(w => w.id === transferData.from);
-    const toWallet = wallets.find(w => w.id === transferData.to);
-    await addTransfer(transferData.amount, transferData.from, transferData.to, transferData.date, fromWallet.name, toWallet.name);
-    setIsTransferModalOpen(false);
-    setTransferData({ from: '', to: '', amount: '', date: new Date().toISOString().split('T')[0] });
-    setNotification({ msg: "Transferência realizada!", type: "success" });
-  };
-
-  const handleCreateWallet = async (e) => {
-    e.preventDefault();
-    if (!newWalletName.trim()) return;
-    await addWallet(newWalletName);
-    setNotification({ msg: "Nova conta criada!", type: "success" });
-    setNewWalletName("");
-    setIsWalletModalOpen(false);
-  };
-
   const handleDelete = async () => {
     if (deleteModal.id) {
       const transactionToDelete = transactions.find(t => t.id === deleteModal.id);
@@ -154,8 +131,9 @@ export default function Dashboard() {
   return (
     <div className="pb-24">
       <Notification message={notification?.msg} type={notification?.type} onClose={() => setNotification(null)} />
-      <ConfirmModal isOpen={deleteModal.isOpen} onClose={() => setDeleteModal({ isOpen: false, id: null })} onConfirm={handleDelete} title="Excluir" message="Confirma a exclusão?" />
+      <ConfirmModal isOpen={deleteModal.isOpen} onClose={() => setDeleteModal({ isOpen: false, id: null })} onConfirm={handleDelete} title="Excluir Transação" message="Confirma a exclusão?" />
 
+      {/* Navegação Mês */}
       <div className="flex items-center justify-center gap-4 mb-6">
         <button onClick={prevMonth} className="p-2 hover:bg-gray-800 rounded-full transition-colors"><ChevronLeft /></button>
         <span className="font-bold text-lg capitalize">{currentDate.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}</span>
@@ -165,25 +143,18 @@ export default function Dashboard() {
       <div className="space-y-6">
         <Summary transactions={filteredTransactions} assets={assets} totalBalance={overallBalance} />
 
-        <div className="bg-gray-800 p-4 rounded-xl border border-gray-700">
-           <div className="flex justify-between items-center mb-4">
-              <h3 className="text-gray-400 text-xs font-bold uppercase flex items-center gap-2"><Wallet size={16} /> Minhas Contas</h3>
-              <div className="flex gap-2">
-                <button onClick={() => setIsTransferModalOpen(true)} className="text-xs bg-blue-600/20 text-blue-400 px-3 py-1.5 rounded-lg border border-blue-500/50 flex items-center gap-1 hover:bg-blue-600/30"><ArrowRightLeft size={14} /> Transferir</button>
-                <button onClick={() => setIsWalletModalOpen(true)} className="text-xs bg-gray-700 text-gray-300 px-3 py-1.5 rounded-lg flex items-center gap-1 hover:bg-gray-600"><Plus size={14} /> Nova</button>
-              </div>
-           </div>
-           <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin">
-              {walletBalances.map(w => (
-                 <div key={w.id} className={`min-w-[140px] p-3 rounded-lg border flex flex-col relative group transition-all ${w.isDefault ? 'bg-blue-900/20 border-blue-500/50' : 'bg-gray-700/30 border-gray-600 hover:border-gray-500'}`}>
-                     <button onClick={() => setAsDefault(w.id)} className={`absolute top-2 right-2 p-1 rounded-full transition-colors ${w.isDefault ? 'text-yellow-400' : 'text-gray-600 hover:text-yellow-200'}`}><Star size={12} fill={w.isDefault ? "currentColor" : "none"} /></button>
-                    <span className="text-xs text-gray-400 truncate pr-4">{w.name}</span>
-                    <span className={`font-bold text-sm ${w.balance >= 0 ? 'text-white' : 'text-red-400'}`}>R$ {w.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                 </div>
-              ))}
-           </div>
-        </div>
+        {/* SECTION CARTEIRAS (AGORA MODULARIZADO) */}
+        <WalletManager 
+            wallets={wallets}
+            walletBalances={walletBalances}
+            onAddWallet={addWallet}
+            onSetDefault={setAsDefault}
+            onDeleteWallet={deleteWallet}
+            onTransfer={addTransfer}
+            onAddTransaction={addTransaction} // Necessário para ajuste de saldo ao deletar
+        />
 
+        {/* Transações */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           <div className="lg:col-span-5 relative lg:sticky lg:top-24 z-0">
             <TransactionForm onSubmit={handleFormSubmit} categories={categories} assets={assets} wallets={wallets} initialData={editingData} onCancelEdit={() => setEditingData(null)} />
@@ -200,7 +171,6 @@ export default function Dashboard() {
                 <CategoryChart transactions={filteredTransactions} mode={chartMode} />
             </div>
             
-            {/* AQUI ESTÁ A ATUALIZAÇÃO: wallets={wallets} */}
             <TransactionList 
                 transactions={filteredTransactions} 
                 wallets={wallets} 
@@ -212,32 +182,6 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
-
-      {isTransferModalOpen && (
-         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-           <div className="bg-gray-800 p-6 rounded-2xl w-full max-w-sm border border-gray-700 animate-scale-up">
-              <h3 className="font-bold text-lg mb-4 text-white">Transferência entre Contas</h3>
-              <form onSubmit={handleTransfer} className="space-y-4">
-                 <div><label className="text-xs text-gray-400">De (Origem)</label><select className="w-full bg-gray-700 p-2 rounded text-white" value={transferData.from} onChange={e => setTransferData({...transferData, from: e.target.value})} required>{wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select></div>
-                 <div><label className="text-xs text-gray-400">Para (Destino)</label><select className="w-full bg-gray-700 p-2 rounded text-white" value={transferData.to} onChange={e => setTransferData({...transferData, to: e.target.value})} required>{wallets.filter(w => w.id !== transferData.from).map(w => <option key={w.id} value={w.id}>{w.name}</option>)}</select></div>
-                 <input type="number" step="0.01" placeholder="Valor" className="w-full bg-gray-700 p-2 rounded text-white" value={transferData.amount} onChange={e => setTransferData({...transferData, amount: e.target.value})} required />
-                 <input type="date" className="w-full bg-gray-700 p-2 rounded text-white" value={transferData.date} onChange={e => setTransferData({...transferData, date: e.target.value})} required />
-                 <div className="flex gap-2 mt-4"><button type="button" onClick={() => setIsTransferModalOpen(false)} className="flex-1 p-2 bg-gray-700 rounded text-gray-300">Cancelar</button><button type="submit" className="flex-1 p-2 bg-blue-600 rounded text-white font-bold">Transferir</button></div>
-              </form>
-           </div>
-        </div>
-      )}
-      {isWalletModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-           <div className="bg-gray-800 p-6 rounded-2xl w-full max-w-sm border border-gray-700 animate-scale-up">
-              <h3 className="font-bold text-lg mb-4 text-white">Nova Conta / Carteira</h3>
-              <form onSubmit={handleCreateWallet} className="space-y-4">
-                 <div><label className="text-xs text-gray-400">Nome da Conta</label><input type="text" placeholder="Ex: Nubank, Bradesco, Cofre..." className="w-full bg-gray-700 p-3 rounded-lg text-white outline-none focus:ring-2 focus:ring-blue-500" value={newWalletName} onChange={e => setNewWalletName(e.target.value)} required autoFocus /></div>
-                 <div className="flex gap-2 mt-4"><button type="button" onClick={() => setIsWalletModalOpen(false)} className="flex-1 p-2 bg-gray-700 rounded text-gray-300">Cancelar</button><button type="submit" className="flex-1 p-2 bg-green-600 rounded text-white font-bold">Criar</button></div>
-              </form>
-           </div>
-        </div>
-      )}
     </div>
   );
 }
