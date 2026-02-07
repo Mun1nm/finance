@@ -69,7 +69,7 @@ export function Summary({ transactions, assets = [], totalBalance }) {
       {/* 4. SALDO EM CONTA (TOTAL ACUMULADO) */}
       {/* Aqui usamos a prop totalBalance que veio da Dashboard */}
       <div className={`bg-gray-800 p-4 rounded-xl border flex flex-col items-center justify-center relative ${totalBalance < 0 ? 'border-red-500/50' : 'border-blue-500/50'}`}>
-        <span className="text-gray-400 text-xs uppercase font-bold mb-1">Saldo em Caixa (Total)</span>
+        <span className="text-gray-400 text-xs uppercase font-bold mb-1">Saldo em Caixa (Mês)</span>
         <div className="flex items-center gap-2 text-white">
           <Wallet size={24} className="lg:w-6 lg:h-6" />
           <span className="font-bold text-xl lg:text-2xl">R$ {totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
