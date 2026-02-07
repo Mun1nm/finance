@@ -1,10 +1,12 @@
 import { useState, useEffect } from "react";
-import { RefreshCw, Pencil, X, User, TrendingUp, Calendar } from "lucide-react";
+import { RefreshCw, Pencil, X, User, TrendingUp, Calendar, Plus, ArrowDownCircle, ArrowUpCircle } from "lucide-react";
 import { MoneyInput } from "./MoneyInput";
 import { useNavigate } from "react-router-dom";
+import { usePeople } from "../hooks/usePeople";
 
 export function TransactionForm({ onSubmit, categories, assets, wallets, initialData, onCancelEdit }) {
   const navigate = useNavigate();
+  const { people, addPerson } = usePeople();
   const today = new Date().toLocaleDateString('en-CA');
 
   const [amount, setAmount] = useState("");
@@ -15,8 +17,11 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
   const [isSubscription, setIsSubscription] = useState(false);
   const [isDebt, setIsDebt] = useState(false);
   const [selectedWallet, setSelectedWallet] = useState("");
+  const [selectedPerson, setSelectedPerson] = useState("");
   
   const [dueDay, setDueDay] = useState(new Date().getDate());
+  const [isAddingPerson, setIsAddingPerson] = useState(false);
+  const [newPersonName, setNewPersonName] = useState("");
 
   useEffect(() => {
     if (initialData) {
@@ -42,6 +47,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       setIsSubscription(false);
       setIsDebt(initialData.isDebt || false);
       setSelectedWallet(initialData.walletId || "");
+      setSelectedPerson(initialData.personId || "");
       setDueDay(new Date().getDate());
 
     } else {
@@ -51,6 +57,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       setDate(today);
       setIsSubscription(false);
       setIsDebt(false);
+      setSelectedPerson("");
       setDueDay(new Date().getDate());
       
       if (wallets && wallets.length > 0) {
@@ -66,12 +73,24 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
 
   const availableCategories = categories.filter(c => (c.type || 'expense') === type);
 
+  const handleQuickAddPerson = async () => {
+      if(!newPersonName.trim()) return;
+      await addPerson(newPersonName);
+      setNewPersonName("");
+      setIsAddingPerson(false);
+  };
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (!amount || !selectedId) return;
     
     if (wallets.length > 0 && !selectedWallet && type !== 'investment') {
         alert("Selecione uma conta/carteira!");
+        return;
+    }
+
+    if (isDebt && !selectedPerson) {
+        alert("Selecione a pessoa vinculada.");
         return;
     }
 
@@ -83,6 +102,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       isSubscription,
       isDebt,
       walletId: selectedWallet,
+      personId: isDebt ? selectedPerson : null,
       dueDay: isSubscription ? dueDay : null 
     };
 
@@ -105,6 +125,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
         setDate(today);
         setIsSubscription(false);
         setIsDebt(false);
+        setSelectedPerson("");
         setDueDay(new Date().getDate());
     }
   };
@@ -126,14 +147,13 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       <form onSubmit={handleSubmit} className="space-y-4">
         
         <div className="flex gap-2 mb-4">
-          <button type="button" disabled={!!initialData} onClick={() => { setType("expense"); setSelectedId(""); }} className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${type === "expense" ? "bg-red-500/20 text-red-400 border-red-500" : "bg-gray-700 border-transparent text-gray-400 hover:bg-gray-600 disabled:opacity-50"}`}>Saída</button>
-          <button type="button" disabled={!!initialData} onClick={() => { setType("investment"); setSelectedId(""); }} className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${type === "investment" ? "bg-purple-500/20 text-purple-400 border-purple-500" : "bg-gray-700 border-transparent text-gray-400 hover:bg-gray-600 disabled:opacity-50"}`}>Invest.</button>
-          <button type="button" disabled={!!initialData} onClick={() => { setType("income"); setSelectedId(""); }} className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${type === "income" ? "bg-green-500/20 text-green-400 border-green-500" : "bg-gray-700 border-transparent text-gray-400 hover:bg-gray-600 disabled:opacity-50"}`}>Entrada</button>
+          <button type="button" disabled={!!initialData} onClick={() => { setType("expense"); setSelectedId(""); setIsDebt(false); }} className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${type === "expense" ? "bg-red-500/20 text-red-400 border-red-500" : "bg-gray-700 border-transparent text-gray-400 hover:bg-gray-600 disabled:opacity-50"}`}>Saída</button>
+          <button type="button" disabled={!!initialData} onClick={() => { setType("investment"); setSelectedId(""); setIsDebt(false); }} className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${type === "investment" ? "bg-purple-500/20 text-purple-400 border-purple-500" : "bg-gray-700 border-transparent text-gray-400 hover:bg-gray-600 disabled:opacity-50"}`}>Invest.</button>
+          <button type="button" disabled={!!initialData} onClick={() => { setType("income"); setSelectedId(""); setIsDebt(false); }} className={`flex-1 py-2 rounded-lg text-sm font-medium border transition-colors ${type === "income" ? "bg-green-500/20 text-green-400 border-green-500" : "bg-gray-700 border-transparent text-gray-400 hover:bg-gray-600 disabled:opacity-50"}`}>Entrada</button>
         </div>
 
         <MoneyInput value={amount} onChange={setAmount} />
 
-        {/* SELECT DE CARTEIRA */}
         {wallets && wallets.length > 0 && (
            <div className="relative">
               <select 
@@ -181,7 +201,6 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
         <div>
           {type === 'investment' ? (
              assets.length > 0 ? (
-                // CORRIGIDO: Removido o focus:ring-purple-500 e border-purple
                 <select value={selectedId} onChange={(e) => setSelectedId(e.target.value)} className="w-full bg-gray-700 text-white rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500">
                   <option value="" disabled>Selecione o Ativo</option>
                   {assets.map(asset => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
@@ -228,12 +247,55 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
               )}
             </div>
 
-            {type === 'expense' && !isSubscription && (
-               <div className={`flex items-center gap-2 p-3 rounded-lg border transition-colors ${isDebt ? 'bg-orange-500/20 border-orange-500' : 'bg-gray-700/50 border-gray-600'}`}>
-               <input type="checkbox" id="debtCheck" checked={isDebt} onChange={(e) => setIsDebt(e.target.checked)} className="w-5 h-5 rounded text-orange-500 bg-gray-700 border-gray-500 cursor-pointer accent-orange-500" />
-               <label htmlFor="debtCheck" className={`text-sm flex items-center gap-2 cursor-pointer select-none w-full ${isDebt ? 'text-orange-200' : 'text-gray-300'}`}>
-                 <User size={14} /> Reembolsável
-               </label>
+            {/* CHECKBOX DÍVIDA (Agora aceita EXPENSE ou INCOME) */}
+            {(type === 'expense' || type === 'income') && !isSubscription && (
+               <div className={`p-3 rounded-lg border transition-colors ${isDebt ? 'bg-orange-500/20 border-orange-500' : 'bg-gray-700/50 border-gray-600'}`}>
+                   <div className="flex items-center gap-2 mb-2">
+                       <input type="checkbox" id="debtCheck" checked={isDebt} onChange={(e) => setIsDebt(e.target.checked)} className="w-5 h-5 rounded text-orange-500 bg-gray-700 border-gray-500 cursor-pointer accent-orange-500" />
+                       <label htmlFor="debtCheck" className={`text-sm flex items-center gap-2 cursor-pointer select-none w-full ${isDebt ? 'text-orange-200' : 'text-gray-300'}`}>
+                         <User size={14} /> 
+                         {type === 'expense' ? "Reembolsável (Vou receber)" : "Empréstimo (Vou pagar)"}
+                       </label>
+                   </div>
+                   
+                   {isDebt && (
+                       <div className="flex gap-2 animate-fade-in mt-2">
+                           {!isAddingPerson ? (
+                               <>
+                                   <select 
+                                       value={selectedPerson} 
+                                       onChange={e => setSelectedPerson(e.target.value)} 
+                                       className="flex-1 bg-gray-900 text-white text-sm p-2 rounded border border-orange-500/50 outline-none"
+                                       required
+                                   >
+                                       <option value="" disabled>Quem {type === 'expense' ? 'deve você?' : 'emprestou?'}</option>
+                                       {people.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                                   </select>
+                                   <button 
+                                       type="button" 
+                                       onClick={() => setIsAddingPerson(true)}
+                                       className="p-2 bg-orange-500/20 text-orange-400 rounded hover:bg-orange-500 hover:text-white transition-colors"
+                                       title="Adicionar Pessoa"
+                                   >
+                                       <Plus size={16} />
+                                   </button>
+                               </>
+                           ) : (
+                               <div className="flex gap-2 flex-1">
+                                   <input 
+                                       type="text" 
+                                       placeholder="Nome da pessoa..." 
+                                       className="flex-1 bg-gray-900 text-white text-sm p-2 rounded border border-orange-500/50 outline-none"
+                                       value={newPersonName}
+                                       onChange={e => setNewPersonName(e.target.value)}
+                                       autoFocus
+                                   />
+                                   <button type="button" onClick={handleQuickAddPerson} className="bg-orange-500 text-white px-3 rounded text-xs font-bold">OK</button>
+                                   <button type="button" onClick={() => setIsAddingPerson(false)} className="bg-gray-600 text-white px-3 rounded text-xs"><X size={14}/></button>
+                               </div>
+                           )}
+                       </div>
+                   )}
              </div>
             )}
           </div>

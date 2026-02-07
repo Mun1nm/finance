@@ -58,7 +58,7 @@ export function TransactionList({ transactions, wallets = [], onEdit, onDelete, 
       const walletName = wallet ? wallet.name : "Sem Carteira";
       
       if (!acc[walletName]) {
-        acc[walletName] = { name: walletName, items: [], total: 0 }; // Total será o Saldo (Entrada - Saída)
+        acc[walletName] = { name: walletName, items: [], total: 0 }; 
       }
       
       acc[walletName].items.push(t);
@@ -73,7 +73,6 @@ export function TransactionList({ transactions, wallets = [], onEdit, onDelete, 
       return acc;
     }, {});
     
-    // Ordena alfabeticamente ou por saldo? Vamos por saldo (maior positivo primeiro)
     return Object.values(groups).sort((a, b) => b.total - a.total);
   };
 
@@ -116,7 +115,12 @@ export function TransactionList({ transactions, wallets = [], onEdit, onDelete, 
               {isDebtItem && (
                 <span className={`text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1 border ${isPaidDebt ? 'bg-green-900/30 text-green-500 border-green-800' : 'bg-orange-900/30 text-orange-400 border-orange-800'}`}>
                   {isPaidDebt ? <Check size={10} /> : <User size={10} />}
-                  {isPaidDebt ? 'Devolvido' : 'A receber'}
+                  
+                  {/* LÓGICA DO TEXTO DO BADGE */}
+                  {isPaidDebt 
+                    ? (t.type === 'expense' ? 'Devolvido' : 'Pago') 
+                    : (t.type === 'expense' ? 'A receber' : 'A pagar')
+                  }
                 </span>
               )}
             </div>
@@ -136,9 +140,17 @@ export function TransactionList({ transactions, wallets = [], onEdit, onDelete, 
              <span className={`font-bold block ${isPaidDebt ? 'text-gray-500 line-through decoration-gray-500' : colorClass}`}>
                 {sign} R$ {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
              </span>
+             
+             {/* LÓGICA DO TEXTO DO BOTÃO */}
              {isDebtItem && !isPaidDebt && (
-                <button onClick={() => onToggleDebt(t.id, t.debtPaid)} className="text-[10px] text-orange-400 hover:text-orange-300 underline mt-1">Marcar Recebido</button>
+                <button 
+                    onClick={() => onToggleDebt(t.id, t.debtPaid)} 
+                    className="text-[10px] text-orange-400 hover:text-orange-300 underline mt-1"
+                >
+                    {t.type === 'expense' ? 'Marcar Recebido' : 'Marcar Pago'}
+                </button>
              )}
+             
              {isPaidDebt && (
                 <button onClick={() => onToggleDebt(t.id, t.debtPaid)} className="text-[10px] text-gray-500 hover:text-gray-400 underline mt-1">Desfazer</button>
              )}
@@ -152,7 +164,6 @@ export function TransactionList({ transactions, wallets = [], onEdit, onDelete, 
     );
   };
 
-  // Renderiza uma lista de cards OU os grupos acordeão
   const renderListOrGroups = (list, prefixKey) => {
     if (list.length === 0) return null;
 
@@ -173,17 +184,11 @@ export function TransactionList({ transactions, wallets = [], onEdit, onDelete, 
           const uniqueGroupKey = `${prefixKey}-${group.name}`;
           const isExpanded = expandedGroups[uniqueGroupKey] !== false; 
 
-          // Lógica de Cor do Cabeçalho
           let headerColor = "text-gray-300";
-          
-          if (groupBy === 'macro') {
-             if (group.type === 'expense') headerColor = "text-red-400";
-             if (group.type === 'income') headerColor = "text-green-400";
-             if (group.type === 'investment') headerColor = "text-purple-400";
-          } else if (groupBy === 'wallet') {
-             // Se for wallet, cor baseada no saldo (positivo/negativo)
-             headerColor = group.total >= 0 ? "text-green-400" : "text-red-400";
-          }
+          if (group.type === 'expense') headerColor = "text-red-400";
+          if (group.type === 'income') headerColor = "text-green-400";
+          if (group.type === 'investment') headerColor = "text-purple-400";
+          if (groupBy === 'wallet') headerColor = group.total >= 0 ? "text-green-400" : "text-red-400";
 
           return (
             <div key={uniqueGroupKey} className="bg-gray-800/50 border border-gray-700 rounded-xl overflow-hidden">
@@ -202,7 +207,6 @@ export function TransactionList({ transactions, wallets = [], onEdit, onDelete, 
                 </div>
                 <div className="flex items-center gap-3">
                   <span className={`font-bold text-sm ${headerColor}`}>
-                    {/* Para Macro mostramos apenas o valor absoluto, para Wallet mostramos saldo assinado */}
                     {groupBy === 'wallet' && group.total > 0 ? '+ ' : ''}
                     R$ {Math.abs(group.total).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </span>
