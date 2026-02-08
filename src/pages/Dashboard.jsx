@@ -50,10 +50,9 @@ export default function Dashboard() {
            tDate.getFullYear() === currentDate.getFullYear();
   });
 
-  // 1. SALDO MENSAL: Ignora Transferências e Futuros
   const monthlyBalance = filteredTransactions.reduce((acc, t) => {
     if (t.isFuture) return acc;
-    if (t.isTransfer) return acc; // IGNORA TRANSFERÊNCIA NO TOTAL
+    if (t.isTransfer) return acc;
     
     if (t.type === 'income') return acc + t.amount;
     
@@ -69,7 +68,7 @@ export default function Dashboard() {
 
   const overallBalance = transactions.reduce((acc, t) => {
     if (t.isFuture) return acc;
-    if (t.isTransfer) return acc; // IGNORA TRANSFERÊNCIA NO ACUMULADO GERAL (Anula mesmo, mas garante)
+    if (t.isTransfer) return acc; 
     
     if (t.date && t.date.seconds * 1000 > new Date().getTime()) return acc;
     
@@ -88,8 +87,9 @@ export default function Dashboard() {
   const futureTransactions = transactions.filter(t => t.isFuture && t.type === 'income');
   const futureBalance = futureTransactions.reduce((acc, t) => acc + t.amount, 0);
 
-  // Carteiras PRECISAM contar transferência para bater o saldo
+  // CÁLCULO DE SALDOS, FATURAS E LIMITES
   const walletBalances = wallets.map(w => {
+    // A. Saldo Caixa
     const balance = transactions
       .filter(t => t.walletId === w.id)
       .filter(t => !t.isFuture) 
@@ -119,22 +119,27 @@ export default function Dashboard() {
         }
         currentInvoiceDate = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`;
 
+        // Soma apenas o que está ABERTO (!isPaidCredit) para a fatura do mês
         const invoiceTotal = transactions
-            .filter(t => t.walletId === w.id && t.paymentMethod === 'credit' && t.invoiceDate === currentInvoiceDate)
+            .filter(t => t.walletId === w.id && t.paymentMethod === 'credit' && t.invoiceDate === currentInvoiceDate && !t.isPaidCredit)
             .reduce((acc, t) => acc + t.amount, 0);
         
-        const invoicePaid = transactions
-            .filter(t => t.walletId === w.id && t.isInvoicePayment && t.invoiceDate === currentInvoiceDate)
-            .reduce((acc, t) => acc + t.amount, 0);
-
-        currentInvoice = Math.max(0, invoiceTotal - invoicePaid);
+        currentInvoice = invoiceTotal;
     }
 
-    return { ...w, balance, currentInvoice, currentInvoiceDate };
+    // C. CÁLCULO DE LIMITE USADO (Soma tudo que é crédito e não está pago)
+    let usedLimit = 0;
+    if (w.hasCredit) {
+        usedLimit = transactions
+            .filter(t => t.walletId === w.id && t.paymentMethod === 'credit' && !t.isPaidCredit)
+            .reduce((acc, t) => acc + t.amount, 0);
+    }
+
+    return { ...w, balance, currentInvoice, currentInvoiceDate, usedLimit };
   });
 
   const handleFormSubmit = async (formData) => {
-    const { amount, categoryName, macro, type, isSubscription, isDebt, description, assetId, date, walletId, dueDay, personId, isFuture, paymentMethod, invoiceDate } = formData;
+    const { amount, categoryName, macro, type, isSubscription, isDebt, description, assetId, date, walletId, dueDay, personId, isFuture, paymentMethod, invoiceDate, installments, closingDay } = formData;
     const todayDay = new Date().getDate();
 
     if (editingData) {
@@ -158,7 +163,9 @@ export default function Dashboard() {
       const shouldProcessNow = !isSubscription || (isSubscription && dueDay <= todayDay);
       if (shouldProcessNow) {
           if (type === 'investment' && assetId) await addContribution(assetId, amount);
-          await addTransaction(amount, categoryName, macro, type, isDebt, description, date, walletId, null, assetId, personId, isFuture, paymentMethod, invoiceDate);
+          
+          // Passamos installments e closingDay
+          await addTransaction(amount, categoryName, macro, type, isDebt, description, date, walletId, null, assetId, personId, isFuture, paymentMethod, invoiceDate, false, installments, closingDay);
       }
       if (isSubscription) {
         await createSubscription(amount, categoryName, macro, categoryName, type, dueDay, walletId, shouldProcessNow);
@@ -206,7 +213,6 @@ export default function Dashboard() {
       </div>
 
       <div className="space-y-6">
-        {/* Passa lista sem transferências para o resumo */}
         <Summary 
             transactions={filteredTransactions.filter(t => !t.isTransfer)} 
             assets={assets} 
@@ -248,13 +254,12 @@ export default function Dashboard() {
                     </div>
                 </div>
                 <div className="h-80 w-full">
-                    {/* Filtra Transferências e Faturas do Gráfico */}
                     <CategoryChart 
                         transactions={filteredTransactions.filter(t => 
                             t.type === chartType && 
                             !t.isFuture && 
                             !t.isInvoicePayment && 
-                            !t.isTransfer // Remove Transferências
+                            !t.isTransfer
                         )} 
                         mode={chartMode} 
                         type={chartType} 
@@ -262,7 +267,6 @@ export default function Dashboard() {
                 </div>
             </div>
             
-            {/* Lista mostra tudo para conferência */}
             <TransactionList 
                 transactions={filteredTransactions.filter(t => !t.isFuture)} 
                 wallets={wallets} 

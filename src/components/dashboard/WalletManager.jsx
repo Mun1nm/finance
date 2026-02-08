@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
-import { Wallet, ArrowRightLeft, Plus, Star, Trash2, AlertTriangle, Clock, CreditCard, Check, Save, Pencil, Loader2, Receipt } from "lucide-react"; // Importei Receipt
+import { Wallet, ArrowRightLeft, Plus, Star, Trash2, AlertTriangle, Clock, CreditCard, Check, Save, Pencil, Loader2, Receipt } from "lucide-react"; 
 import { useWallets } from "../../hooks/useWallets";
+import { useTransactions } from "../../hooks/useTransactions"; // Importei Hook
 
 export function WalletManager({ 
   wallets, 
@@ -16,6 +17,7 @@ export function WalletManager({
   onAddTransaction 
 }) {
   const { updateWallet } = useWallets();
+  const { payInvoice } = useTransactions(); // Função de Pagar
 
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [transferData, setTransferData] = useState({ from: '', to: '', amount: '', date: new Date().toISOString().split('T')[0] });
@@ -107,20 +109,19 @@ export function WalletManager({
 
       try {
           setIsSubmitting(true);
-          await onAddTransaction(
-              currentInvoice,
-              "Pagamento de Fatura",
-              "Transferências",
-              "expense",
-              false,
-              `Fatura ${currentInvoiceDate}`,
-              new Date().toISOString().split('T')[0],
-              id, 
-              null, null, null, false, 
-              'debit', 
-              currentInvoiceDate, 
-              true 
-          );
+          
+          // Filtra IDs das transações da fatura atual que precisam ser baixadas
+          const transactionsToPay = transactions
+            .filter(t => 
+                t.walletId === id && 
+                t.paymentMethod === 'credit' && 
+                t.invoiceDate === currentInvoiceDate &&
+                !t.isPaidCredit // Garante que só pega o que tá em aberto
+            )
+            .map(t => t.id);
+
+          await payInvoice(id, currentInvoice, currentInvoiceDate, transactionsToPay);
+
           setInvoiceModalWallet(null);
       } catch (error) {
           console.error("Erro ao pagar fatura:", error);
@@ -268,7 +269,6 @@ export function WalletManager({
                                     onClick={() => setInvoiceModalWallet(w)}
                                     className="w-full text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 p-1.5 rounded flex items-center justify-between hover:bg-purple-500/30 transition-colors"
                                 >
-                                    {/* MUDANÇA AQUI: ÍCONE NO LUGAR DO TEXTO */}
                                     <span title="Fatura Atual"><Receipt size={14} /></span>
                                     <span className="font-bold">R$ {w.currentInvoice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                                 </button>
@@ -286,7 +286,7 @@ export function WalletManager({
             ))}
         </div>
 
-        {/* ... (OS MODAIS CONTINUAM IGUAIS) ... */}
+        {/* ... (MODAIS DE CRIAR, TRANSFERIR, DELETAR SÃO IGUAIS) ... */}
         {/* MODAL NOVA CARTEIRA */}
         {isWalletModalOpen && (
             <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
@@ -298,7 +298,6 @@ export function WalletManager({
                             <input type="text" className="w-full bg-gray-700 p-3 rounded-lg text-white" value={newWalletName} onChange={e => setNewWalletName(e.target.value)} required autoFocus />
                         </div>
                         
-                        {/* TOGGLE CRÉDITO */}
                         <div className={`p-3 rounded-lg border transition-all ${hasCredit ? 'bg-purple-500/10 border-purple-500' : 'bg-gray-700/30 border-gray-600'}`}>
                             <div className="flex items-center gap-2 mb-2">
                                 <input type="checkbox" id="creditCheck" checked={hasCredit} onChange={(e) => setHasCredit(e.target.checked)} className="w-4 h-4 rounded text-purple-500 bg-gray-700 border-gray-500 cursor-pointer accent-purple-500" />
@@ -447,9 +446,9 @@ export function WalletManager({
                                 ) : (
                                     <div className="text-xs text-purple-200 flex gap-2 items-center">
                                         <span>
-                                            R$ {invoiceModalWallet.currentInvoice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} 
+                                            {/* AQUI ESTAVA O ERRO: USAR usedLimit EM VEZ DE currentInvoice */}
+                                            R$ {(invoiceModalWallet.usedLimit || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} 
                                             <span className="text-gray-500 mx-1">/</span> 
-                                            {/* CORREÇÃO DO DISPLAY DE LIMITE */}
                                             {invoiceModalWallet.creditLimit > 0 
                                                 ? `R$ ${invoiceModalWallet.creditLimit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` 
                                                 : "Sem Limite Definido"
@@ -462,15 +461,15 @@ export function WalletManager({
                                 )}
                             </div>
                             
-                            {/* Barra Visual (Trata Limite 0 para não bugar) */}
+                            {/* Barra Visual */}
                             <div className="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
                                 <div 
                                     className={`h-full transition-all duration-500 ${
-                                        invoiceModalWallet.creditLimit > 0 && (invoiceModalWallet.currentInvoice / invoiceModalWallet.creditLimit) > 0.9 
+                                        invoiceModalWallet.creditLimit > 0 && (invoiceModalWallet.usedLimit / invoiceModalWallet.creditLimit) > 0.9 
                                         ? 'bg-red-500' 
                                         : 'bg-purple-500'
                                     }`}
-                                    style={{ width: `${invoiceModalWallet.creditLimit > 0 ? Math.min((invoiceModalWallet.currentInvoice / invoiceModalWallet.creditLimit) * 100, 100) : 0}%` }}
+                                    style={{ width: `${invoiceModalWallet.creditLimit > 0 ? Math.min(((invoiceModalWallet.usedLimit || 0) / invoiceModalWallet.creditLimit) * 100, 100) : 0}%` }}
                                 ></div>
                             </div>
                         </div>

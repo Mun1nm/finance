@@ -1,8 +1,8 @@
 import { useState, useEffect } from "react";
-import { RefreshCw, Pencil, X, User, TrendingUp, Calendar, Plus, Clock, Wallet, CreditCard } from "lucide-react";
-import { MoneyInput } from "../ui/MoneyInput";
+import { RefreshCw, Pencil, X, User, TrendingUp, Calendar, Plus, Clock, Wallet, CreditCard, Layers } from "lucide-react";
+import { MoneyInput } from "../ui/MoneyInput"; // Ajustado import
 import { useNavigate } from "react-router-dom";
-import { usePeople } from "../../hooks/usePeople";
+import { usePeople } from "../../hooks/usePeople"; // Ajustado import
 
 export function TransactionForm({ onSubmit, categories, assets, wallets, initialData, onCancelEdit }) {
   const navigate = useNavigate();
@@ -20,14 +20,16 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
   const [selectedWallet, setSelectedWallet] = useState("");
   const [selectedPerson, setSelectedPerson] = useState("");
   
-  // NOVOS STATES
-  const [paymentMethod, setPaymentMethod] = useState("debit"); // 'debit' or 'credit'
+  const [paymentMethod, setPaymentMethod] = useState("debit"); 
   
+  // PARCELAMENTO
+  const [isInstallment, setIsInstallment] = useState(false);
+  const [installmentsCount, setInstallmentsCount] = useState(2);
+
   const [dueDay, setDueDay] = useState(new Date().getDate());
   const [isAddingPerson, setIsAddingPerson] = useState(false);
   const [newPersonName, setNewPersonName] = useState("");
 
-  // Verifica se a carteira selecionada tem crédito
   const currentWallet = wallets.find(w => w.id === selectedWallet);
   const hasCredit = currentWallet?.hasCredit;
 
@@ -57,8 +59,9 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       setIsFuture(initialData.isFuture || false);
       setSelectedWallet(initialData.walletId || "");
       setSelectedPerson(initialData.personId || "");
-      setPaymentMethod(initialData.paymentMethod || "debit"); // Carrega método
+      setPaymentMethod(initialData.paymentMethod || "debit");
       setDueDay(new Date().getDate());
+      setIsInstallment(false); // Edição de parcelas complexa, reseta por enquanto
 
     } else {
       setAmount("");
@@ -71,6 +74,8 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       setSelectedPerson("");
       setPaymentMethod("debit");
       setDueDay(new Date().getDate());
+      setIsInstallment(false);
+      setInstallmentsCount(2);
       
       if (wallets && wallets.length > 0) {
           const defaultWallet = wallets.find(w => w.isDefault);
@@ -83,10 +88,17 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
     }
   }, [initialData, categories, assets, wallets]);
 
-  // Reseta para débito se mudar para Investment ou Income
   useEffect(() => {
-      if (type !== 'expense') setPaymentMethod("debit");
+      if (type !== 'expense') {
+          setPaymentMethod("debit");
+          setIsInstallment(false);
+      }
   }, [type]);
+
+  // Se mudou pra débito, remove parcelamento
+  useEffect(() => {
+      if (paymentMethod === 'debit') setIsInstallment(false);
+  }, [paymentMethod]);
 
   const availableCategories = categories.filter(c => (c.type || 'expense') === type);
 
@@ -111,28 +123,6 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
         return;
     }
 
-    // CÁLCULO DA DATA DA FATURA (INVOICE DATE)
-    let finalInvoiceDate = null;
-    if (type === 'expense' && paymentMethod === 'credit' && currentWallet) {
-        const closing = currentWallet.closingDay;
-        const [yearStr, monthStr, dayStr] = date.split('-');
-        const tDay = parseInt(dayStr);
-        let tMonth = parseInt(monthStr) - 1; // JS Month é 0-11
-        let tYear = parseInt(yearStr);
-
-        // Se comprou APÓS o fechamento, joga para o próximo mês
-        if (tDay > closing) {
-            tMonth++;
-            if (tMonth > 11) {
-                tMonth = 0;
-                tYear++;
-            }
-        }
-        
-        // Formato YYYY-MM
-        finalInvoiceDate = `${tYear}-${String(tMonth + 1).padStart(2, '0')}`;
-    }
-
     let submitData = {
       amount,
       type,
@@ -145,7 +135,9 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       personId: isDebt ? selectedPerson : null,
       dueDay: isSubscription ? dueDay : null,
       paymentMethod: type === 'expense' ? paymentMethod : 'debit',
-      invoiceDate: finalInvoiceDate
+      // Parcelamento
+      installments: isInstallment ? parseInt(installmentsCount) : 1,
+      closingDay: currentWallet?.closingDay || null
     };
 
     if (type === 'investment') {
@@ -171,6 +163,8 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
         setSelectedPerson("");
         setPaymentMethod("debit");
         setDueDay(new Date().getDate());
+        setIsInstallment(false);
+        setInstallmentsCount(2);
     }
   };
 
@@ -198,6 +192,18 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
 
         <MoneyInput value={amount} onChange={setAmount} />
 
+        {/* INPUT DE PARCELAS (Só aparece se Crédito + Parcelado estiver ativo) */}
+        {isInstallment && amount > 0 && (
+            <div className="bg-purple-900/20 border border-purple-500/30 p-2 rounded-lg text-center animate-fade-in">
+                <span className="text-xs text-purple-300">
+                    {installmentsCount}x de 
+                    <strong className="text-white ml-1">
+                        R$ {(parseFloat(amount) / installmentsCount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </strong>
+                </span>
+            </div>
+        )}
+
         {wallets && wallets.length > 0 && (
            <div className="relative">
               <div className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none text-gray-400">
@@ -224,23 +230,51 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
            </div>
         )}
 
-        {/* SELETOR DE DÉBITO / CRÉDITO (Só aparece se for Saída e a carteira tiver crédito) */}
+        {/* SELETOR DE DÉBITO / CRÉDITO */}
         {type === 'expense' && hasCredit && !isSubscription && (
-            <div className="flex gap-2 bg-gray-700/50 p-1 rounded-lg border border-gray-600">
-                <button
-                    type="button"
-                    onClick={() => setPaymentMethod("debit")}
-                    className={`flex-1 py-2 rounded text-xs font-bold transition-all flex items-center justify-center gap-2 ${paymentMethod === 'debit' ? 'bg-gray-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
-                >
-                    <Wallet size={14} /> Débito (Agora)
-                </button>
-                <button
-                    type="button"
-                    onClick={() => setPaymentMethod("credit")}
-                    className={`flex-1 py-2 rounded text-xs font-bold transition-all flex items-center justify-center gap-2 ${paymentMethod === 'credit' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
-                >
-                    <CreditCard size={14} /> Crédito (Fatura)
-                </button>
+            <div className="space-y-2">
+                <div className="flex gap-2 bg-gray-700/50 p-1 rounded-lg border border-gray-600">
+                    <button
+                        type="button"
+                        onClick={() => setPaymentMethod("debit")}
+                        className={`flex-1 py-2 rounded text-xs font-bold transition-all flex items-center justify-center gap-2 ${paymentMethod === 'debit' ? 'bg-gray-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                    >
+                        <Wallet size={14} /> Débito
+                    </button>
+                    <button
+                        type="button"
+                        onClick={() => setPaymentMethod("credit")}
+                        className={`flex-1 py-2 rounded text-xs font-bold transition-all flex items-center justify-center gap-2 ${paymentMethod === 'credit' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                    >
+                        <CreditCard size={14} /> Crédito
+                    </button>
+                </div>
+
+                {/* TOGGLE PARCELADO */}
+                {paymentMethod === 'credit' && (
+                    <div className={`p-3 rounded-lg border transition-all ${isInstallment ? 'bg-purple-500/10 border-purple-500' : 'bg-gray-700/30 border-gray-600'}`}>
+                        <div className="flex items-center gap-2 mb-2">
+                            <input type="checkbox" id="installCheck" checked={isInstallment} onChange={(e) => setIsInstallment(e.target.checked)} className="w-4 h-4 rounded text-purple-500 bg-gray-700 border-gray-500 cursor-pointer accent-purple-500" />
+                            <label htmlFor="installCheck" className="text-sm text-gray-300 cursor-pointer select-none flex items-center gap-2 w-full">
+                                <Layers size={14} /> Parcelar Compra
+                            </label>
+                        </div>
+                        
+                        {isInstallment && (
+                            <div className="flex items-center gap-2 animate-fade-in">
+                                <label className="text-xs text-gray-400 whitespace-nowrap">Número de Parcelas:</label>
+                                <input 
+                                    type="number" 
+                                    min="2" 
+                                    max="60" 
+                                    value={installmentsCount} 
+                                    onChange={e => setInstallmentsCount(e.target.value)} 
+                                    className="w-16 bg-gray-800 text-white p-1 rounded text-center border border-purple-500/50 outline-none"
+                                />
+                            </div>
+                        )}
+                    </div>
+                )}
             </div>
         )}
 
@@ -293,28 +327,33 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
           )}
         </div>
 
+        {/* REPETIR MENSALMENTE / DIVIDA / FUTURO ... */}
         {!initialData && (
           <div className="grid grid-cols-1 gap-2">
-            <div className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${isSubscription ? 'bg-blue-600/20 border-blue-500' : 'bg-gray-700/50 border-gray-600'}`}>
-              <input type="checkbox" id="subCheck" checked={isSubscription} onChange={(e) => { setIsSubscription(e.target.checked); if(e.target.checked) { setIsDebt(false); setIsFuture(false); } }} className="w-5 h-5 rounded text-blue-600 bg-gray-700 border-gray-500 cursor-pointer" />
-              <label htmlFor="subCheck" className="text-sm text-gray-300 flex items-center gap-2 cursor-pointer select-none w-full">
-                <RefreshCw size={14} /> Repetir mensalmente
-              </label>
-              
-              {isSubscription && (
-                <div className="flex items-center gap-2 ml-auto">
-                    <span className="text-xs text-blue-300">Todo dia:</span>
-                    <input 
-                        type="number" 
-                        min="1" 
-                        max="31" 
-                        value={dueDay} 
-                        onChange={e => setDueDay(e.target.value)}
-                        className="w-12 bg-gray-900 border border-blue-500/50 rounded text-center text-white text-sm p-1 focus:ring-2 focus:ring-blue-500 outline-none"
-                    />
+            
+            {/* Se for parcelado, não pode ser recorrente */}
+            {!isInstallment && (
+                <div className={`flex items-center gap-2 p-3 rounded-lg border transition-all ${isSubscription ? 'bg-blue-600/20 border-blue-500' : 'bg-gray-700/50 border-gray-600'}`}>
+                    <input type="checkbox" id="subCheck" checked={isSubscription} onChange={(e) => { setIsSubscription(e.target.checked); if(e.target.checked) { setIsDebt(false); setIsFuture(false); } }} className="w-5 h-5 rounded text-blue-600 bg-gray-700 border-gray-500 cursor-pointer" />
+                    <label htmlFor="subCheck" className="text-sm text-gray-300 flex items-center gap-2 cursor-pointer select-none w-full">
+                        <RefreshCw size={14} /> Repetir mensalmente
+                    </label>
+                    
+                    {isSubscription && (
+                        <div className="flex items-center gap-2 ml-auto">
+                            <span className="text-xs text-blue-300">Todo dia:</span>
+                            <input 
+                                type="number" 
+                                min="1" 
+                                max="31" 
+                                value={dueDay} 
+                                onChange={e => setDueDay(e.target.value)}
+                                className="w-12 bg-gray-900 border border-blue-500/50 rounded text-center text-white text-sm p-1 focus:ring-2 focus:ring-blue-500 outline-none"
+                            />
+                        </div>
+                    )}
                 </div>
-              )}
-            </div>
+            )}
 
             {type === 'income' && !isSubscription && !isDebt && (
                <div className={`flex items-center gap-2 p-3 rounded-lg border transition-colors ${isFuture ? 'bg-blue-500/20 border-blue-500' : 'bg-gray-700/50 border-gray-600'}`}>
@@ -325,7 +364,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
                </div>
             )}
 
-            {(type === 'expense' || type === 'income') && !isSubscription && !isFuture && (
+            {(type === 'expense' || type === 'income') && !isSubscription && !isFuture && !isInstallment && (
                <div className={`p-3 rounded-lg border transition-colors ${isDebt ? 'bg-orange-500/20 border-orange-500' : 'bg-gray-700/50 border-gray-600'}`}>
                    <div className="flex items-center gap-2 mb-2">
                        <input type="checkbox" id="debtCheck" checked={isDebt} onChange={(e) => setIsDebt(e.target.checked)} className="w-5 h-5 rounded text-orange-500 bg-gray-700 border-gray-500 cursor-pointer accent-orange-500" />
