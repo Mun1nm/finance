@@ -33,15 +33,23 @@ export default function Dashboard() {
 
   const hasProcessedSubscriptions = useRef(false);
 
+  // MUDANÇA: Passando 'wallets' para processSubscriptions
   useEffect(() => {
-    if (hasProcessedSubscriptions.current) return;
+    if (hasProcessedSubscriptions.current || wallets.length === 0) return; // Espera carregar wallets
+    
+    // O 'processSubscriptions' roda de forma assíncrona, então setamos a ref antes para não duplicar chamadas
+    // Mas só marcamos true se processar algo. Para simplificar, a lógica do hook cuida de não duplicar mês.
+    // Aqui garantimos que só tenta rodar quando tiver carteiras carregadas.
     hasProcessedSubscriptions.current = true;
 
-    processSubscriptions((val, cat, mac, typ, isDebt, desc, date, walletId, subId) => {
-      addTransaction(val, cat, mac, typ, isDebt, desc, date, walletId, subId);
+    processSubscriptions(async (val, cat, mac, typ, isDebt, desc, date, walletId, subId, paymentMethod, invoiceDate) => {
+      // Repassando os novos argumentos (paymentMethod, invoiceDate)
+      // Ordem dos argumentos do addTransaction:
+      // amount, category, macro, type, isDebt, description, date, walletId, subscriptionId, assetId, personId, isFuture, paymentMethod, invoiceDate
+      await addTransaction(val, cat, mac, typ, isDebt, desc, date, walletId, subId, null, null, false, paymentMethod, invoiceDate);
       setNotification({ msg: "Recorrências processadas!", type: "info" });
-    });
-  }, []);
+    }, wallets);
+  }, [wallets]); // Dependência wallets para garantir que temos os dados para calcular a fatura
 
   const filteredTransactions = transactions.filter(t => {
     if (!t.date) return false;
@@ -87,9 +95,7 @@ export default function Dashboard() {
   const futureTransactions = transactions.filter(t => t.isFuture && t.type === 'income');
   const futureBalance = futureTransactions.reduce((acc, t) => acc + t.amount, 0);
 
-  // CÁLCULO DE SALDOS, FATURAS E LIMITES
   const walletBalances = wallets.map(w => {
-    // A. Saldo Caixa
     const balance = transactions
       .filter(t => t.walletId === w.id)
       .filter(t => !t.isFuture) 
@@ -119,7 +125,6 @@ export default function Dashboard() {
         }
         currentInvoiceDate = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`;
 
-        // Soma apenas o que está ABERTO (!isPaidCredit) para a fatura do mês
         const invoiceTotal = transactions
             .filter(t => t.walletId === w.id && t.paymentMethod === 'credit' && t.invoiceDate === currentInvoiceDate && !t.isPaidCredit)
             .reduce((acc, t) => acc + t.amount, 0);
@@ -127,7 +132,6 @@ export default function Dashboard() {
         currentInvoice = invoiceTotal;
     }
 
-    // C. CÁLCULO DE LIMITE USADO (Soma tudo que é crédito e não está pago)
     let usedLimit = 0;
     if (w.hasCredit) {
         usedLimit = transactions
@@ -163,12 +167,11 @@ export default function Dashboard() {
       const shouldProcessNow = !isSubscription || (isSubscription && dueDay <= todayDay);
       if (shouldProcessNow) {
           if (type === 'investment' && assetId) await addContribution(assetId, amount);
-          
-          // Passamos installments e closingDay
           await addTransaction(amount, categoryName, macro, type, isDebt, description, date, walletId, null, assetId, personId, isFuture, paymentMethod, invoiceDate, false, installments, closingDay);
       }
       if (isSubscription) {
-        await createSubscription(amount, categoryName, macro, categoryName, type, dueDay, walletId, shouldProcessNow);
+        // Passando paymentMethod para a assinatura
+        await createSubscription(amount, categoryName, macro, categoryName, type, dueDay, walletId, shouldProcessNow, paymentMethod);
         setNotification({ msg: shouldProcessNow ? `Assinatura criada e debitada!` : `Agendado para dia ${dueDay}.`, type: "success" });
       } else {
         setNotification({ msg: "Salvo com sucesso!", type: "success" });
