@@ -56,7 +56,6 @@ export function WalletManager({
 
     try {
         setIsSubmitting(true);
-        // O MoneyInput retorna float, passamos direto. Se creditLimit for vazio, o hook trata.
         await onAddWallet(newWalletName, hasCredit, closingDay, dueDay, creditLimit); 
         
         setNewWalletName("");
@@ -209,7 +208,7 @@ export function WalletManager({
   return (
     <div className="bg-gray-800 p-4 rounded-xl border border-gray-700">
         
-        <div className="flex justify-between items-end mb-4">
+        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end mb-4 gap-4">
             <div className="flex flex-col gap-1">
                 <h3 className="text-gray-400 text-xs font-bold uppercase flex items-center gap-2">
                     <Wallet size={16} /> Minhas Contas
@@ -226,16 +225,18 @@ export function WalletManager({
                 </div>
                 <span className="text-[10px] text-gray-500 font-medium">Total Acumulado</span>
             </div>
-            <div className="flex gap-2">
-                <button onClick={() => setIsTransferModalOpen(true)} className="text-xs bg-blue-600/20 text-blue-400 px-3 py-2 rounded-lg border border-blue-500/50 flex items-center gap-1 hover:bg-blue-600/30">
+            
+            <div className="flex gap-2 w-full sm:w-auto">
+                <button onClick={() => setIsTransferModalOpen(true)} className="flex-1 sm:flex-none justify-center text-xs bg-blue-600/20 text-blue-400 px-3 py-2 rounded-lg border border-blue-500/50 flex items-center gap-1 hover:bg-blue-600/30">
                     <ArrowRightLeft size={14} /> Transferir
                 </button>
-                <button onClick={() => setIsWalletModalOpen(true)} className="text-xs bg-gray-700 text-gray-300 px-3 py-2 rounded-lg flex items-center gap-1 hover:bg-gray-600">
+                <button onClick={() => setIsWalletModalOpen(true)} className="flex-1 sm:flex-none justify-center text-xs bg-gray-700 text-gray-300 px-3 py-2 rounded-lg flex items-center gap-1 hover:bg-gray-600">
                     <Plus size={14} /> Nova
                 </button>
             </div>
         </div>
 
+        {/* LISTA DE CARTEIRAS */}
         <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-thin">
             {walletBalances.map(w => (
                 <div key={w.id} className={`min-w-[160px] p-3 rounded-lg border flex flex-col relative group transition-all ${w.isDefault ? 'bg-blue-900/20 border-blue-500/50' : 'bg-gray-700/30 border-gray-600 hover:border-gray-500'}`}>
@@ -279,8 +280,9 @@ export function WalletManager({
                             <input type="text" className="w-full bg-gray-700 p-3 rounded-lg text-white outline-none focus:ring-2 focus:ring-blue-500" value={newWalletName} onChange={e => setNewWalletName(e.target.value)} required autoFocus />
                         </div>
                         
-                        <div className={`p-3 rounded-lg border transition-all ${hasCredit ? 'bg-purple-500/10 border-purple-500' : 'bg-gray-700/30 border-gray-600'}`}>
-                            <div className="flex items-center gap-2 mb-2">
+                        {/* CORREÇÃO AQUI: Padding reduzido e margem condicional */}
+                        <div className={`p-2 rounded-lg border transition-all ${hasCredit ? 'bg-purple-500/10 border-purple-500' : 'bg-gray-700/30 border-gray-600'}`}>
+                            <div className={`flex items-center gap-2 ${hasCredit ? 'mb-2' : ''}`}>
                                 <div className="relative flex items-center">
                                     <input type="checkbox" id="creditCheck" checked={hasCredit} onChange={(e) => setHasCredit(e.target.checked)} className="peer appearance-none w-5 h-5 rounded border border-gray-500 bg-gray-800 checked:bg-purple-600 checked:border-purple-600 transition-colors cursor-pointer" />
                                     <Check size={12} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white pointer-events-none opacity-0 peer-checked:opacity-100" />
@@ -293,11 +295,11 @@ export function WalletManager({
                                     <div className="flex gap-2">
                                         <div className="flex-1">
                                             <label className="text-[10px] text-gray-400">Fechamento (Dia)</label>
-                                            <input type="number" min="1" max="31" value={closingDay} onChange={e => setClosingDay(e.target.value)} className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-center outline-none focus:border-purple-500" />
+                                            <input type="number" inputMode="numeric" min="1" max="31" value={closingDay} onChange={e => setClosingDay(e.target.value)} className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-center outline-none focus:border-purple-500" />
                                         </div>
                                         <div className="flex-1">
                                             <label className="text-[10px] text-gray-400">Vencimento (Dia)</label>
-                                            <input type="number" min="1" max="31" value={dueDay} onChange={e => setDueDay(e.target.value)} className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-center outline-none focus:border-purple-500" />
+                                            <input type="number" inputMode="numeric" min="1" max="31" value={dueDay} onChange={e => setDueDay(e.target.value)} className="w-full bg-gray-900 border border-gray-600 rounded p-2 text-white text-center outline-none focus:border-purple-500" />
                                         </div>
                                     </div>
                                     <div>
@@ -418,7 +420,7 @@ export function WalletManager({
                                 <span className="text-[10px] text-gray-400 uppercase font-bold">Limite Utilizado</span>
                                 {editingLimit ? (
                                     <div className="flex gap-1 items-center">
-                                        <input type="number" autoFocus className="w-24 bg-gray-900 border border-purple-500 rounded text-xs text-white p-1 text-right outline-none" value={newLimitValue} onChange={e => setNewLimitValue(e.target.value)} placeholder={invoiceModalWallet.creditLimit} />
+                                        <input type="number" inputMode="numeric" autoFocus className="w-24 bg-gray-900 border border-purple-500 rounded text-xs text-white p-1 text-right outline-none" value={newLimitValue} onChange={e => setNewLimitValue(e.target.value)} placeholder={invoiceModalWallet.creditLimit} />
                                         <button onClick={handleUpdateLimit} className="bg-green-600 p-1 rounded text-white hover:bg-green-500"><Save size={12}/></button>
                                     </div>
                                 ) : (

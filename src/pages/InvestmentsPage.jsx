@@ -37,7 +37,6 @@ export default function InvestmentsPage() {
     }
   }, [wallets, isCreating, selectedAsset]);
 
-  // --- CRIAR ATIVO ---
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!name || !amount || !selectedWallet) return;
@@ -125,7 +124,6 @@ export default function InvestmentsPage() {
             <input type="text" placeholder="Nome" value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-700 p-3 rounded-lg text-white" />
             <div className="space-y-1"><label className="text-xs text-gray-400">Valor Inicial</label><MoneyInput value={amount} onChange={setAmount} /></div>
             
-            {/* CORREÇÃO AQUI: Select de Criação estilizado */}
             {wallets.length > 0 && (
                 <div className="space-y-1">
                     <label className="text-xs text-gray-400">Origem</label>
