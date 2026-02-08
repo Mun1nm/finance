@@ -231,6 +231,7 @@ export default function Dashboard() {
             onDeleteWallet={deleteWallet}
             onTransfer={addTransfer}
             onAddTransaction={addTransaction}
+            setNotification={setNotification}
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">

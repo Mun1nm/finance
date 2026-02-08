@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useCategories } from "../hooks/useCategories";
-import { ArrowLeft, Trash2, ArrowUpCircle, ArrowDownCircle, Pencil, X } from "lucide-react"; // Removi TrendingUp
+import { ArrowLeft, Trash2, ArrowUpCircle, ArrowDownCircle, Pencil, X, ChevronDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const EXPENSE_MACROS = [
@@ -24,14 +24,12 @@ export default function CategoriesPage() {
 
   let currentMacros = EXPENSE_MACROS;
   if (type === "income") currentMacros = INCOME_MACROS;
-  // REMOVIDO IF DO INVESTMENT
 
   const filteredCategories = categories.filter(c => {
     const catType = c.type || 'expense';
     return catType === type;
   });
 
-  // ... (handleSubmit, handleEditClick, cancelEdit IGUAIS) ...
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!newCat) return;
@@ -58,7 +56,6 @@ export default function CategoriesPage() {
     setSelectedMacro(currentMacros[0]);
   };
 
-  // Helper simplificado
   const getTypeConfig = (t) => {
     switch(t) {
       case 'income': return { color: 'green', icon: <ArrowUpCircle size={18} />, label: 'Entradas' };
@@ -77,7 +74,6 @@ export default function CategoriesPage() {
         <h1 className="text-xl font-bold">Gerir Categorias</h1>
       </header>
 
-      {/* Seletor de Tipo (AGORA SÓ 2 OPÇÕES) */}
       <div className="flex gap-2 mb-6">
         <button 
           disabled={!!editingId}
@@ -95,7 +91,6 @@ export default function CategoriesPage() {
         </button>
       </div>
 
-      {/* ... (O RESTO DO FORMULÁRIO E LISTA CONTINUA IGUAL) ... */}
       <div className={`p-4 rounded-xl mb-6 border shadow-lg transition-colors ${editingId ? 'bg-blue-900/20 border-blue-500/50' : 'bg-gray-800 border-gray-700'}`}>
         
         {editingId && (
@@ -108,24 +103,30 @@ export default function CategoriesPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          
+          {/* CORREÇÃO AQUI: Estrutura Label + Div Relative para alinhamento perfeito */}
           <div>
-            <label className="text-xs text-gray-400 uppercase font-bold">Macro Categoria</label>
-            <select 
-              value={selectedMacro} 
-              onChange={(e) => setSelectedMacro(e.target.value)}
-              className="w-full bg-gray-700 text-white p-3 rounded-lg mt-1 outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              {currentMacros.map(m => <option key={m} value={m}>{m}</option>)}
-            </select>
+            <label className="text-xs text-gray-400 uppercase font-bold mb-1 block">Macro Categoria</label>
+            <div className="relative">
+              <select 
+                value={selectedMacro} 
+                onChange={(e) => setSelectedMacro(e.target.value)}
+                className="w-full bg-gray-700 text-white p-3 pr-10 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 appearance-none"
+              >
+                {currentMacros.map(m => <option key={m} value={m}>{m}</option>)}
+              </select>
+              <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            </div>
           </div>
+
           <div>
-            <label className="text-xs text-gray-400 uppercase font-bold">Nome da Categoria</label>
+            <label className="text-xs text-gray-400 uppercase font-bold mb-1 block">Nome da Categoria</label>
             <input 
               type="text" 
               placeholder="Nome da categoria..."
               value={newCat}
               onChange={(e) => setNewCat(e.target.value)}
-              className="w-full bg-gray-700 text-white p-3 rounded-lg mt-1 outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full bg-gray-700 text-white p-3 rounded-lg outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <button 

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useInvestments } from "../hooks/useInvestments";
 import { useTransactions } from "../hooks/useTransactions";
 import { useWallets } from "../hooks/useWallets"; 
-import { ArrowLeft, Plus, TrendingUp, DollarSign, RefreshCw, Trash2, Wallet, ArrowDownRight } from "lucide-react";
+import { ArrowLeft, Plus, TrendingUp, DollarSign, RefreshCw, Trash2, Wallet, ArrowDownRight, ChevronDown } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { MoneyInput } from "../components/ui/MoneyInput";
 import { Notification } from "../components/ui/Notification";
@@ -10,7 +10,6 @@ import { ConfirmModal } from "../components/ui/ConfirmModal";
 
 export default function InvestmentsPage() {
   const { assets, addAsset, updateBalance, addContribution, deleteAsset, processWithdrawal } = useInvestments();
-  // Importando a nova função de limpeza
   const { addTransaction, deleteTransactionsByAssetId } = useTransactions();
   const { wallets } = useWallets(); 
   const navigate = useNavigate();
@@ -38,16 +37,12 @@ export default function InvestmentsPage() {
     }
   }, [wallets, isCreating, selectedAsset]);
 
-  // --- CRIAR ATIVO (COM VÍNCULO) ---
+  // --- CRIAR ATIVO ---
   const handleCreate = async (e) => {
     e.preventDefault();
     if (!name || !amount || !selectedWallet) return;
     
-    // 1. Cria o ativo e PEGA O REF
     const newAssetRef = await addAsset(name, "fixed", amount); 
-    
-    // 2. Cria a transação PASSANDO O ID DO ATIVO (último parâmetro)
-    // Parâmetros: amount, category, macro, type, isDebt, description, date, walletId, subscriptionId, assetId
     await addTransaction(amount, name, "Investimentos", "investment", false, "Aporte Inicial", null, selectedWallet, null, newAssetRef.id);
 
     setNotification({ msg: "Investimento criado!", type: "success" });
@@ -68,7 +63,6 @@ export default function InvestmentsPage() {
       if (!selectedWallet) return setNotification({ msg: "Selecione a conta!", type: "error" });
       
       await addContribution(selectedAsset.id, amount);
-      // Passa o assetId na transação de aporte também
       await addTransaction(amount, selectedAsset.name, "Investimentos", "investment", false, "Aporte Adicional", null, selectedWallet, null, selectedAsset.id);
       
       setNotification({ msg: "Aporte realizado!", type: "success" });
@@ -83,7 +77,6 @@ export default function InvestmentsPage() {
 
       await processWithdrawal(selectedAsset.id, grossAmount, isFullWithdrawal);
       
-      // Resgates não necessariamente precisam de assetId na transação de renda, mas ajuda
       await addTransaction(netAmount, selectedAsset.name, "Rendimentos", "income", false, "Resgate de Investimento", null, selectedWallet, null, selectedAsset.id);
 
       if (tax > 0) {
@@ -96,15 +89,10 @@ export default function InvestmentsPage() {
     closeModal();
   };
 
-  // --- DELETE COM LIMPEZA DE RASTROS ---
   const confirmDelete = async () => {
     if (deleteModal.id) {
-      // 1. Apaga todas as transações (aportes/resgates) vinculadas a este ativo
       await deleteTransactionsByAssetId(deleteModal.id);
-      
-      // 2. Apaga o ativo
       await deleteAsset(deleteModal.id);
-      
       setNotification({ msg: "Ativo e histórico removidos.", type: "success" });
       setDeleteModal({ isOpen: false, id: null });
     }
@@ -136,20 +124,25 @@ export default function InvestmentsPage() {
           <form onSubmit={handleCreate} className="space-y-4">
             <input type="text" placeholder="Nome" value={name} onChange={e => setName(e.target.value)} className="w-full bg-gray-700 p-3 rounded-lg text-white" />
             <div className="space-y-1"><label className="text-xs text-gray-400">Valor Inicial</label><MoneyInput value={amount} onChange={setAmount} /></div>
+            
+            {/* CORREÇÃO AQUI: Select de Criação estilizado */}
             {wallets.length > 0 && (
                 <div className="space-y-1">
                     <label className="text-xs text-gray-400">Origem</label>
-                    <select value={selectedWallet} onChange={e => setSelectedWallet(e.target.value)} className="w-full bg-gray-700 text-white rounded-lg p-3" required>
-                        {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                    </select>
+                    <div className="relative">
+                        <select value={selectedWallet} onChange={e => setSelectedWallet(e.target.value)} className="w-full bg-gray-700 text-white rounded-lg p-3 pr-10 appearance-none outline-none focus:ring-2 focus:ring-purple-500" required>
+                            {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                        </select>
+                        <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                    </div>
                 </div>
             )}
+            
             <div className="flex gap-2"><button type="button" onClick={() => setIsCreating(false)} className="flex-1 py-3 bg-gray-700 rounded-lg">Cancelar</button><button type="submit" className="flex-1 py-3 bg-purple-600 rounded-lg font-bold">Criar</button></div>
           </form>
         </div>
       )}
 
-      {/* CARD DE TOTAL (Igual ao anterior) */}
       <div className="bg-gradient-to-br from-gray-800 to-gray-900 p-6 rounded-2xl border border-gray-700 shadow-xl mb-8 relative overflow-hidden">
         <div className="absolute top-0 right-0 w-32 h-32 bg-purple-600/10 rounded-full blur-3xl -mr-16 -mt-16"></div>
         <div className="flex justify-between items-start mb-4 relative z-10">
@@ -194,7 +187,6 @@ export default function InvestmentsPage() {
         })}
       </div>
 
-      {/* MODAL GERAL (Mantido igual) */}
       {selectedAsset && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
           <div className="bg-gray-800 w-full max-w-sm rounded-2xl p-6 border border-gray-700 animate-scale-up shadow-2xl">
@@ -231,11 +223,14 @@ export default function InvestmentsPage() {
               )}
 
               {(actionType === 'contribute' || actionType === 'withdraw') && wallets.length > 0 && (
-                  <div>
+                  <div className="relative">
                       <label className="text-xs text-gray-400 mb-1 block">{actionType === 'withdraw' ? 'Destino' : 'Origem'}</label>
-                      <select value={selectedWallet} onChange={e => setSelectedWallet(e.target.value)} className="w-full bg-gray-700 text-white rounded-lg p-3 border border-gray-600" required>
-                          {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
-                      </select>
+                      <div className="relative">
+                        <select value={selectedWallet} onChange={e => setSelectedWallet(e.target.value)} className="w-full bg-gray-700 text-white rounded-lg p-3 pr-10 border border-gray-600 appearance-none outline-none focus:ring-2 focus:ring-blue-500" required>
+                            {wallets.map(w => <option key={w.id} value={w.id}>{w.name}</option>)}
+                        </select>
+                        <ChevronDown size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+                      </div>
                   </div>
               )}
             </div>
