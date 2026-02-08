@@ -1,5 +1,5 @@
 import { useSubscriptions } from "../hooks/useSubscriptions";
-import { ArrowLeft, Play, Pause, Trash2, Calendar, CreditCard, CheckCircle2, XCircle, Pencil, Save, X, TrendingUp, TrendingDown } from "lucide-react";
+import { ArrowLeft, Play, Pause, Trash2, Calendar, CreditCard, CheckCircle2, XCircle, Pencil, Save, X, TrendingUp, TrendingDown, Wallet } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Notification } from "../components/ui/Notification";
@@ -16,7 +16,7 @@ export default function SubscriptionsPage() {
 
   // State do Modal de Edição
   const [editingSub, setEditingSub] = useState(null);
-  const [editForm, setEditForm] = useState({ name: "", amount: "", day: "", walletId: "", type: "expense" });
+  const [editForm, setEditForm] = useState({ name: "", amount: "", day: "", walletId: "", type: "expense", paymentMethod: "debit" });
 
   const activeSubs = subscriptions.filter(s => s.active).sort((a,b) => a.day - b.day);
   const inactiveSubs = subscriptions.filter(s => !s.active);
@@ -35,7 +35,6 @@ export default function SubscriptionsPage() {
     setNotification({ msg: `Recorrência ${status}.`, type: !sub.active ? "success" : "info" });
   };
 
-  // Abrir modal de edição
   const openEdit = (sub) => {
     setEditingSub(sub);
     setEditForm({
@@ -43,11 +42,11 @@ export default function SubscriptionsPage() {
         amount: sub.amount,
         day: sub.day,
         walletId: sub.walletId || "",
-        type: sub.type || "expense" // Carrega o tipo atual
+        type: sub.type || "expense",
+        paymentMethod: sub.paymentMethod || "debit" // Carrega o método
     });
   };
 
-  // Salvar edição
   const handleSaveEdit = async (e) => {
     e.preventDefault();
     if (!editingSub) return;
@@ -57,7 +56,8 @@ export default function SubscriptionsPage() {
         amount: parseFloat(editForm.amount),
         day: parseInt(editForm.day),
         walletId: editForm.walletId,
-        type: editForm.type // Salva o novo tipo
+        type: editForm.type,
+        paymentMethod: editForm.paymentMethod // Salva
     });
 
     setNotification({ msg: "Recorrência atualizada!", type: "success" });
@@ -75,7 +75,6 @@ export default function SubscriptionsPage() {
     return (
       <div key={sub.id} className={`p-4 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all ${sub.active ? 'bg-gray-800 border-gray-700 hover:border-gray-600' : 'bg-gray-800/50 border-gray-700/50 opacity-60'}`}>
           <div className="flex items-center gap-4">
-              {/* ÍCONE DE TIPO (Entrada vs Saída) */}
               <div className={`p-3 rounded-full ${
                   sub.active 
                     ? (isIncome ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400') 
@@ -87,7 +86,10 @@ export default function SubscriptionsPage() {
               <div>
                   <h4 className={`font-bold ${sub.active ? 'text-white' : 'text-gray-400 line-through'}`}>{sub.name}</h4>
                   <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
-                      <span className="flex items-center gap-1"><CreditCard size={10}/> {getWalletName(sub.walletId)}</span>
+                      <span className="flex items-center gap-1">
+                          {sub.paymentMethod === 'credit' ? <CreditCard size={10} className="text-purple-400"/> : <Wallet size={10} className="text-gray-400"/>}
+                          {getWalletName(sub.walletId)}
+                      </span>
                       <span className="bg-gray-700 px-1.5 py-0.5 rounded text-gray-300 flex items-center gap-1">
                         <Calendar size={10} /> Dia {sub.day}
                       </span>
@@ -96,7 +98,6 @@ export default function SubscriptionsPage() {
           </div>
           
           <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
-              {/* VALOR COLORIDO */}
               <span className={`font-bold text-lg ${isIncome ? 'text-green-400' : 'text-white'}`}>
                   {isIncome ? '+ ' : '- '}
                   R$ {sub.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
@@ -149,7 +150,6 @@ export default function SubscriptionsPage() {
         )}
       </div>
 
-      {/* MODAL DE EDIÇÃO */}
       {editingSub && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
            <div className="bg-gray-800 p-6 rounded-2xl w-full max-w-sm border border-gray-700 animate-scale-up">
@@ -163,23 +163,25 @@ export default function SubscriptionsPage() {
                  
                  <MoneyInput value={editForm.amount} onChange={(val) => setEditForm({...editForm, amount: val})} />
                  
-                 {/* SELETOR DE TIPO (Entrada/Saída) */}
-                 <div className="flex bg-gray-700 p-1 rounded-lg">
-                    <button 
-                        type="button"
-                        onClick={() => setEditForm({...editForm, type: 'expense'})}
-                        className={`flex-1 py-2 rounded-md text-sm font-bold transition-all ${editForm.type === 'expense' ? 'bg-red-500 text-white shadow' : 'text-gray-400 hover:text-white'}`}
-                    >
-                        Saída
-                    </button>
-                    <button 
-                        type="button"
-                        onClick={() => setEditForm({...editForm, type: 'income'})}
-                        className={`flex-1 py-2 rounded-md text-sm font-bold transition-all ${editForm.type === 'income' ? 'bg-green-500 text-white shadow' : 'text-gray-400 hover:text-white'}`}
-                    >
-                        Entrada
-                    </button>
-                 </div>
+                 {/* NOVO: SELETOR DE MÉTODO DE PAGAMENTO (Só se for Saída) */}
+                 {editForm.type === 'expense' && (
+                     <div className="flex bg-gray-700 p-1 rounded-lg">
+                        <button 
+                            type="button"
+                            onClick={() => setEditForm({...editForm, paymentMethod: 'debit'})}
+                            className={`flex-1 py-2 rounded-md text-sm font-bold transition-all flex items-center justify-center gap-2 ${editForm.paymentMethod === 'debit' ? 'bg-gray-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                        >
+                            <Wallet size={14} /> Débito
+                        </button>
+                        <button 
+                            type="button"
+                            onClick={() => setEditForm({...editForm, paymentMethod: 'credit'})}
+                            className={`flex-1 py-2 rounded-md text-sm font-bold transition-all flex items-center justify-center gap-2 ${editForm.paymentMethod === 'credit' ? 'bg-purple-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}
+                        >
+                            <CreditCard size={14} /> Crédito
+                        </button>
+                     </div>
+                 )}
 
                  <div className="flex gap-2">
                     <div className="w-1/3">
