@@ -43,7 +43,7 @@ export default function SubscriptionsPage() {
         day: sub.day,
         walletId: sub.walletId || "",
         type: sub.type || "expense",
-        paymentMethod: sub.paymentMethod || "debit" // Carrega o método
+        paymentMethod: sub.paymentMethod || "debit" 
     });
   };
 
@@ -57,7 +57,7 @@ export default function SubscriptionsPage() {
         day: parseInt(editForm.day),
         walletId: editForm.walletId,
         type: editForm.type,
-        paymentMethod: editForm.paymentMethod // Salva
+        paymentMethod: editForm.paymentMethod 
     });
 
     setNotification({ msg: "Recorrência atualizada!", type: "success" });
@@ -99,7 +99,6 @@ export default function SubscriptionsPage() {
           
           <div className="flex items-center justify-between sm:justify-end gap-4 w-full sm:w-auto">
               <span className={`font-bold text-lg ${isIncome ? 'text-green-400' : 'text-white'}`}>
-                  {isIncome ? '+ ' : '- '}
                   R$ {sub.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
               </span>
               
@@ -163,7 +162,6 @@ export default function SubscriptionsPage() {
                  
                  <MoneyInput value={editForm.amount} onChange={(val) => setEditForm({...editForm, amount: val})} />
                  
-                 {/* NOVO: SELETOR DE MÉTODO DE PAGAMENTO (Só se for Saída) */}
                  {editForm.type === 'expense' && (
                      <div className="flex bg-gray-700 p-1 rounded-lg">
                         <button 
@@ -186,7 +184,7 @@ export default function SubscriptionsPage() {
                  <div className="flex gap-2">
                     <div className="w-1/3">
                         <label className="text-xs text-gray-400 block mb-1">Dia Venc.</label>
-                        <input type="number" min="1" max="31" value={editForm.day} onChange={e => setEditForm({...editForm, day: e.target.value})} className="w-full bg-gray-700 p-3 rounded-lg text-white text-center outline-none focus:ring-2 focus:ring-blue-600" required />
+                        <input type="number" inputMode="numeric" min="1" max="31" value={editForm.day} onChange={e => setEditForm({...editForm, day: e.target.value})} className="w-full bg-gray-700 p-3 rounded-lg text-white text-center outline-none focus:ring-2 focus:ring-blue-600" required />
                     </div>
                     <div className="w-2/3">
                         <label className="text-xs text-gray-400 block mb-1">Carteira</label>

@@ -6,27 +6,27 @@ body, html {
   color: #f3f4f6; /* Cor gray-100 */
   margin: 0;
   padding: 0;
-  height: 100%; /* Garante que o fundo cubra 100% da altura */
-  overflow-x: hidden; /* Evita scroll horizontal indesejado */
+  height: 100%; 
+  overflow-x: hidden; 
 }
 
-/* Opcional: Estilização da Barra de Rolagem (Scrollbar) para ficar escura */
+/* Opcional: Estilização da Barra de Rolagem */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #1f2937; /* gray-800 */
+  background: #1f2937; 
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #4b5563; /* gray-600 */
+  background: #4b5563; 
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #6b7280; /* gray-500 */
+  background: #6b7280; 
 }
 
 input[type=number]::-webkit-inner-spin-button, 
@@ -38,4 +38,9 @@ input[type=number]::-webkit-outer-spin-button {
 input[type=number] {
   -moz-appearance: textfield;
   appearance: textfield;
+}
+
+/* NOVO: Esconder cursor de digitação (Caret) */
+.caret-transparent {
+  caret-color: transparent;
 }
