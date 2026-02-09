@@ -287,7 +287,7 @@ export function WalletManager({
                                     <input type="checkbox" id="creditCheck" checked={hasCredit} onChange={(e) => setHasCredit(e.target.checked)} className="peer appearance-none w-5 h-5 rounded border border-gray-500 bg-gray-800 checked:bg-purple-600 checked:border-purple-600 transition-colors cursor-pointer" />
                                     <Check size={12} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white pointer-events-none opacity-0 peer-checked:opacity-100" />
                                 </div>
-                                <label htmlFor="creditCheck" className="text-sm text-gray-300 cursor-pointer select-none">Possui Função Crédito?</label>
+                                <label htmlFor="creditCheck" className="text-sm text-gray-300 cursor-pointer select-none">Possui função crédito?</label>
                             </div>
                             
                             {hasCredit && (
@@ -443,7 +443,7 @@ export function WalletManager({
                         {transactions.length === 0 && <p className="text-center text-gray-500 text-sm py-4">Sem compras nesta fatura.</p>}
                         {transactions.filter(t => t.walletId === invoiceModalWallet.id && t.paymentMethod === 'credit' && t.invoiceDate === invoiceModalWallet.currentInvoiceDate).map(t => (
                             <div key={t.id} className="flex justify-between items-center text-sm p-2 bg-gray-700/30 rounded border border-transparent hover:border-gray-600 transition-colors">
-                                <span className="text-gray-300 truncate pr-2">{t.description || t.category}</span>
+                                <span className="text-gray-300 truncate pr-2">{t.category}{t.description ? ` - ${t.description}` : ''}</span>
                                 <span className="text-white font-bold whitespace-nowrap">R$ {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                             </div>
                         ))}
