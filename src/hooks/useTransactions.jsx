@@ -63,14 +63,13 @@ export function useTransactions() {
       return d;
   };
 
-  // CORREÇÃO AQUI: Mudado para >= (compra no dia do fechamento já pula o mês)
   const getInvoiceDateForTransaction = (transactionDate, closingDay) => {
       const date = new Date(transactionDate);
       const day = date.getDate();
       let month = date.getMonth();
       let year = date.getFullYear();
 
-      if (day >= closingDay) { // >= em vez de >
+      if (day >= closingDay) { 
           month++;
           if (month > 11) {
               month = 0;
@@ -186,6 +185,28 @@ export function useTransactions() {
     await deleteDoc(docRef);
   };
 
+  // --- FUNÇÃO CORRIGIDA ---
+  const deleteTransactionsByAssetId = async (assetId) => {
+    if (!userProfile?.isAuthorized) return;
+    
+    // CORREÇÃO: Adicionado where("uid", "==", currentUser.uid) para satisfazer as regras de segurança
+    const q = query(
+        transactionRef, 
+        where("assetId", "==", assetId),
+        where("uid", "==", currentUser.uid)
+    );
+    
+    const snapshot = await getDocs(q);
+    
+    const batch = writeBatch(db);
+    snapshot.docs.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+    
+    await batch.commit();
+  };
+  // ------------------------
+
   const updateTransaction = async (id, amount, category, macro, type, isDebt, description = "", date = null, walletId = null, isFuture = false, paymentMethod = 'debit', invoiceDate = null) => {
     if (!userProfile?.isAuthorized) return;
     const docRef = doc(db, "transactions", id);
@@ -262,7 +283,8 @@ export function useTransactions() {
     loading, 
     addTransaction, 
     addTransfer, 
-    deleteTransaction, 
+    deleteTransaction,
+    deleteTransactionsByAssetId,
     updateTransaction, 
     toggleDebtStatus,
     confirmFutureReceipt,

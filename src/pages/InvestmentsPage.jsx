@@ -30,6 +30,9 @@ export default function InvestmentsPage() {
   const totalYield = totalCurrent - totalInvested;
   const yieldPercentage = totalInvested > 0 ? (totalYield / totalInvested) * 100 : 0;
 
+  // Data de hoje formatada YYYY-MM-DD para as transações
+  const today = new Date().toLocaleDateString('en-CA');
+
   useEffect(() => {
     if (wallets && wallets.length > 0 && !selectedWallet) {
         const defaultWallet = wallets.find(w => w.isDefault);
@@ -42,7 +45,8 @@ export default function InvestmentsPage() {
     if (!name || !amount || !selectedWallet) return;
     
     const newAssetRef = await addAsset(name, "fixed", amount); 
-    await addTransaction(amount, name, "Investimentos", "investment", false, "Aporte Inicial", null, selectedWallet, null, newAssetRef.id);
+    // CORREÇÃO: Passando 'today' em vez de null no 7º argumento
+    await addTransaction(amount, name, "Investimentos", "investment", false, "Aporte Inicial", today, selectedWallet, null, newAssetRef.id);
 
     setNotification({ msg: "Investimento criado!", type: "success" });
     setIsCreating(false);
@@ -62,7 +66,8 @@ export default function InvestmentsPage() {
       if (!selectedWallet) return setNotification({ msg: "Selecione a conta!", type: "error" });
       
       await addContribution(selectedAsset.id, amount);
-      await addTransaction(amount, selectedAsset.name, "Investimentos", "investment", false, "Aporte Adicional", null, selectedWallet, null, selectedAsset.id);
+      // CORREÇÃO: Passando 'today' em vez de null
+      await addTransaction(amount, selectedAsset.name, "Investimentos", "investment", false, "Aporte Adicional", today, selectedWallet, null, selectedAsset.id);
       
       setNotification({ msg: "Aporte realizado!", type: "success" });
     }
@@ -76,10 +81,12 @@ export default function InvestmentsPage() {
 
       await processWithdrawal(selectedAsset.id, grossAmount, isFullWithdrawal);
       
-      await addTransaction(netAmount, selectedAsset.name, "Rendimentos", "income", false, "Resgate de Investimento", null, selectedWallet, null, selectedAsset.id);
+      // CORREÇÃO: Passando 'today' em vez de null
+      await addTransaction(netAmount, selectedAsset.name, "Rendimentos", "income", false, "Resgate de Investimento", today, selectedWallet, null, selectedAsset.id);
 
       if (tax > 0) {
-        await addTransaction(tax, "Impostos e Taxas", "Investimentos", "expense", false, `Imposto sobre Resgate: ${selectedAsset.name}`, null, selectedWallet, null, selectedAsset.id);
+        // CORREÇÃO: Passando 'today' em vez de null na taxa também
+        await addTransaction(tax, "Impostos e Taxas", "Investimentos", "expense", false, `Imposto sobre Resgate: ${selectedAsset.name}`, today, selectedWallet, null, selectedAsset.id);
       }
 
       setNotification({ msg: isFullWithdrawal ? "Resgate total concluído!" : "Resgate realizado!", type: "success" });
@@ -108,7 +115,7 @@ export default function InvestmentsPage() {
   return (
     <div className="pb-24">
        <Notification message={notification?.msg} type={notification?.type} onClose={() => setNotification(null)} />
-       <ConfirmModal isOpen={deleteModal.isOpen} onClose={() => setDeleteModal({ isOpen: false, id: null })} onConfirm={confirmDelete} title="Excluir Ativo" message="Isso apagará o ativo E devolverá os valores dos aportes para as carteiras (removendo as despesas)." />
+       <ConfirmModal isOpen={deleteModal.isOpen} onClose={() => setDeleteModal({ isOpen: false, id: null })} onConfirm={confirmDelete} title="Excluir Ativo" message="Isso apagará o ativo e devolverá os valores dos aportes para as carteiras (removendo as despesas)." />
 
       <header className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-bold">Carteira de Investimentos</h1>
