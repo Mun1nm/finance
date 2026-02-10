@@ -158,15 +158,17 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
            </div>
         )}
 
-        {type === 'expense' && hasCredit && !isSubscription && (
+        {/* CORREÇÃO AQUI: Removemos !isSubscription para permitir Crédito na Assinatura */}
+        {type === 'expense' && hasCredit && (
             <div className="space-y-2">
                 <div className="flex gap-2 bg-gray-700/50 p-1 rounded-lg border border-gray-600">
                     <button type="button" onClick={() => setPaymentMethod("debit")} className={`flex-1 py-2 rounded text-xs font-bold transition-all flex items-center justify-center gap-2 ${paymentMethod === 'debit' ? 'bg-gray-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}><Wallet size={14} /> Débito</button>
                     <button type="button" onClick={() => setPaymentMethod("credit")} className={`flex-1 py-2 rounded text-xs font-bold transition-all flex items-center justify-center gap-2 ${paymentMethod === 'credit' ? 'bg-blue-600 text-white shadow' : 'text-gray-400 hover:text-white'}`}><CreditCard size={14} /> Crédito</button>
                 </div>
-                {paymentMethod === 'credit' && (
+                
+                {/* CORREÇÃO AQUI: Parcelamento só aparece se NÃO for assinatura */}
+                {paymentMethod === 'credit' && !isSubscription && (
                     <div className={`p-2 rounded-lg border transition-all ${isInstallment ? 'bg-purple-500/10 border-purple-500' : 'bg-gray-700/30 border-gray-600'}`}>
-                        {/* AQUI ESTAVA O PROBLEMA: mb-2 só deve existir se o conteúdo expandido aparecer */}
                         <div className={`flex items-center gap-2 ${isInstallment ? 'mb-2' : ''}`}>
                             <div className="relative flex items-center">
                                 <input type="checkbox" id="installCheck" checked={isInstallment} onChange={(e) => setIsInstallment(e.target.checked)} className="peer appearance-none w-5 h-5 rounded border border-gray-500 bg-gray-800 checked:bg-purple-600 checked:border-purple-600 transition-colors cursor-pointer" />
@@ -251,7 +253,6 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
 
             {(type === 'expense' || type === 'income') && !isSubscription && !isFuture && !isInstallment && (
                <div className={`p-2 rounded-lg border transition-colors ${isDebt ? 'bg-orange-500/20 border-orange-500' : 'bg-gray-700/50 border-gray-600'}`}>
-                   {/* AQUI TAMBÉM: Removemos o mb-2 fixo */}
                    <div className={`flex items-center gap-2 ${isDebt ? 'mb-2' : ''}`}>
                        <div className="relative flex items-center">
                             <input type="checkbox" id="debtCheck" checked={isDebt} onChange={(e) => setIsDebt(e.target.checked)} className="peer appearance-none w-5 h-5 rounded border border-gray-500 bg-gray-800 checked:bg-orange-500 checked:border-orange-500 transition-colors cursor-pointer" />
