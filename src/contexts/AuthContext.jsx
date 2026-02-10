@@ -62,11 +62,6 @@ export function AuthProvider({ children }) {
 
         const tokenResult = await user.getIdTokenResult();
 
-        console.log("-----------------------------------");
-        console.log("UID:", user.uid);
-        console.log("TEM PERMISSÃO?", tokenResult.claims.isAuthorized);
-        console.log("-----------------------------------");
-
         setCurrentUser(user);
         await checkUserProfile(user); // Busca permissões antes de liberar o app
       } else {
