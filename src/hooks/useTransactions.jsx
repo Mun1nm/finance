@@ -30,6 +30,7 @@ export function useTransactions() {
         return;
     }
 
+    // ⚠️ ATENÇÃO: Isso exige o Índice: uid (ASC) + date (DESC) no Firebase
     const q = query(
       transactionRef,
       where("uid", "==", currentUser.uid),
@@ -44,7 +45,7 @@ export function useTransactions() {
       setTransactions(data);
       setLoading(false);
     }, (error) => {
-      console.log("Aguardando permissão de leitura...");
+      console.error("Erro leitura transações:", error); // Log mais claro
     });
 
     return unsubscribe;
@@ -88,8 +89,14 @@ export function useTransactions() {
     const baseAmount = parseFloat(amount);
     const installmentValue = installments > 1 ? baseAmount / installments : baseAmount;
     
-    const [y, m, d] = date.split('-').map(Number);
-    const baseDateObj = new Date(y, m - 1, d);
+    // Tratamento de data seguro
+    let baseDateObj;
+    if (date) {
+        const [y, m, d] = date.split('-').map(Number);
+        baseDateObj = new Date(y, m - 1, d);
+    } else {
+        baseDateObj = new Date();
+    }
 
     for (let i = 0; i < installments; i++) {
         const docRef = doc(collection(db, "transactions"));
@@ -108,15 +115,15 @@ export function useTransactions() {
         }
 
         batch.set(docRef, {
-            uid: currentUser.uid,
+            uid: currentUser.uid, // OBRIGATÓRIO PARA AS REGRAS DE SEGURANÇA
             amount: installmentValue,
             category,
             macro,
             type,
             description: finalDesc,
-            isDebt,
+            isDebt: !!isDebt, // Garante booleano
             debtPaid: false,
-            isFuture: isFuture || false,
+            isFuture: !!isFuture, // Garante booleano
             date: parseDate(currentInstallmentDateString),
             walletId: walletId || null,
             subscriptionId: subscriptionId || null,
@@ -124,7 +131,7 @@ export function useTransactions() {
             personId: personId || null,
             paymentMethod,
             invoiceDate: currentInvoiceDate,
-            isInvoicePayment,
+            isInvoicePayment: !!isInvoicePayment,
             isPaidCredit: false,
             installmentGroupId: groupId, 
             installmentIndex: i + 1,
@@ -185,19 +192,16 @@ export function useTransactions() {
     await deleteDoc(docRef);
   };
 
-  // --- FUNÇÃO CORRIGIDA ---
   const deleteTransactionsByAssetId = async (assetId) => {
     if (!userProfile?.isAuthorized) return;
     
-    // CORREÇÃO: Adicionado where("uid", "==", currentUser.uid) para satisfazer as regras de segurança
     const q = query(
         transactionRef, 
         where("assetId", "==", assetId),
-        where("uid", "==", currentUser.uid)
+        where("uid", "==", currentUser.uid) // CRÍTICO: Mantido para segurança
     );
     
     const snapshot = await getDocs(q);
-    
     const batch = writeBatch(db);
     snapshot.docs.forEach((doc) => {
       batch.delete(doc.ref);
@@ -205,7 +209,6 @@ export function useTransactions() {
     
     await batch.commit();
   };
-  // ------------------------
 
   const updateTransaction = async (id, amount, category, macro, type, isDebt, description = "", date = null, walletId = null, isFuture = false, paymentMethod = 'debit', invoiceDate = null) => {
     if (!userProfile?.isAuthorized) return;
@@ -216,8 +219,8 @@ export function useTransactions() {
       category,
       macro,
       type,
-      isDebt,
-      isFuture,
+      isDebt: !!isDebt,
+      isFuture: !!isFuture,
       description,
       walletId: walletId || null,
       paymentMethod,
