@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useTransactions } from "../hooks/useTransactions";
 import { useCategories } from "../hooks/useCategories";
@@ -43,80 +43,95 @@ export default function Dashboard() {
     }, wallets);
   }, [wallets]);
 
-  // Filtros e Cálculos
-  const filteredTransactions = transactions.filter(t => {
-    if (!t.date) return false;
-    const tDate = new Date(t.date.seconds * 1000);
-    return tDate.getMonth() === currentDate.getMonth() && 
-           tDate.getFullYear() === currentDate.getFullYear();
-  });
+  // 1. Só filtra as transações se 'transactions' ou 'currentDate' mudarem
+  const filteredTransactions = useMemo(() => {
+    return transactions.filter(t => {
+      if (!t.date) return false;
+      const tDate = new Date(t.date.seconds * 1000);
+      return tDate.getMonth() === currentDate.getMonth() && 
+             tDate.getFullYear() === currentDate.getFullYear();
+    });
+  }, [transactions, currentDate]);
 
-  const monthlyBalance = filteredTransactions.reduce((acc, t) => {
-    if (t.isFuture || t.isTransfer) return acc;
-    if (t.type === 'income') return acc + t.amount;
-    if (t.type === 'expense') {
-        if (t.isInvoicePayment || (t.isDebt && t.debtPaid)) return acc;
+  // 2. Só recalcula o saldo mensal se a lista filtrada mudar
+  const monthlyBalance = useMemo(() => {
+    return filteredTransactions.reduce((acc, t) => {
+      if (t.isFuture || t.isTransfer) return acc;
+      if (t.type === 'income') return acc + t.amount;
+      if (t.type === 'expense') {
+          if (t.isInvoicePayment || (t.isDebt && t.debtPaid)) return acc;
+          return acc - t.amount;
+      }
+      if (t.type === 'investment') return acc - t.amount;
+      return acc;
+    }, 0);
+  }, [filteredTransactions]);
+
+  // 3. Só recalcula o saldo total se 'transactions' mudar
+  const overallBalance = useMemo(() => {
+    return transactions.reduce((acc, t) => {
+      if (t.isFuture || t.isTransfer) return acc; 
+      if (t.date && t.date.seconds * 1000 > new Date().getTime()) return acc;
+      if (t.type === 'income') return acc + t.amount;
+      if (t.type === 'expense') {
+        if (t.isDebt && t.debtPaid) return acc;
+        if (t.paymentMethod === 'credit') return acc;
         return acc - t.amount;
-    }
-    if (t.type === 'investment') return acc - t.amount;
-    return acc;
-  }, 0);
+      } 
+      if (t.type === 'investment') return acc - t.amount;
+      return acc;
+    }, 0);
+  }, [transactions]);
 
-  const overallBalance = transactions.reduce((acc, t) => {
-    if (t.isFuture || t.isTransfer) return acc; 
-    if (t.date && t.date.seconds * 1000 > new Date().getTime()) return acc;
-    if (t.type === 'income') return acc + t.amount;
-    if (t.type === 'expense') {
-      if (t.isDebt && t.debtPaid) return acc;
-      if (t.paymentMethod === 'credit') return acc;
-      return acc - t.amount;
-    } 
-    if (t.type === 'investment') return acc - t.amount;
-    return acc;
-  }, 0);
+  // 4. Futuro também memorizado
+  const { futureTransactions, futureBalance } = useMemo(() => {
+    const ft = transactions.filter(t => t.isFuture && t.type === 'income');
+    const fb = ft.reduce((acc, t) => acc + t.amount, 0);
+    return { futureTransactions: ft, futureBalance: fb };
+  }, [transactions]);
 
-  const futureTransactions = transactions.filter(t => t.isFuture && t.type === 'income');
-  const futureBalance = futureTransactions.reduce((acc, t) => acc + t.amount, 0);
+  // 5. O cálculo mais pesado (Carteiras) agora é memorizado
+  const walletBalances = useMemo(() => {
+    return wallets.map(w => {
+      const balance = transactions
+        .filter(t => t.walletId === w.id && !t.isFuture && t.date && t.date.seconds * 1000 <= new Date().getTime())
+        .reduce((acc, t) => {
+           if (t.type === 'income') return acc + t.amount;
+           if (t.type === 'expense' || t.type === 'investment') {
+               if (t.paymentMethod === 'credit') return acc;
+               return acc - t.amount;
+           }
+           return acc;
+        }, 0);
 
-  const walletBalances = wallets.map(w => {
-    const balance = transactions
-      .filter(t => t.walletId === w.id && !t.isFuture && t.date && t.date.seconds * 1000 <= new Date().getTime())
-      .reduce((acc, t) => {
-         if (t.type === 'income') return acc + t.amount;
-         if (t.type === 'expense' || t.type === 'investment') {
-             if (t.paymentMethod === 'credit') return acc;
-             return acc - t.amount;
-         }
-         return acc;
-      }, 0);
+      let currentInvoice = 0;
+      let currentInvoiceDate = "";
+      
+      if (w.hasCredit) {
+          const today = new Date();
+          const closing = w.closingDay;
+          const currentDay = today.getDate();
+          let targetMonth = today.getMonth();
+          let targetYear = today.getFullYear();
 
-    let currentInvoice = 0;
-    let currentInvoiceDate = "";
-    
-    if (w.hasCredit) {
-        const today = new Date();
-        const closing = w.closingDay;
-        const currentDay = today.getDate();
-        let targetMonth = today.getMonth();
-        let targetYear = today.getFullYear();
+          if (currentDay > closing) {
+              targetMonth++;
+              if (targetMonth > 11) { targetMonth = 0; targetYear++; }
+          }
+          currentInvoiceDate = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`;
 
-        if (currentDay > closing) {
-            targetMonth++;
-            if (targetMonth > 11) { targetMonth = 0; targetYear++; }
-        }
-        currentInvoiceDate = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`;
+          currentInvoice = transactions
+              .filter(t => t.walletId === w.id && t.paymentMethod === 'credit' && t.invoiceDate === currentInvoiceDate && !t.isPaidCredit)
+              .reduce((acc, t) => acc + t.amount, 0);
+      }
 
-        currentInvoice = transactions
-            .filter(t => t.walletId === w.id && t.paymentMethod === 'credit' && t.invoiceDate === currentInvoiceDate && !t.isPaidCredit)
-            .reduce((acc, t) => acc + t.amount, 0);
-    }
+      const usedLimit = w.hasCredit ? transactions
+          .filter(t => t.walletId === w.id && t.paymentMethod === 'credit' && !t.isPaidCredit)
+          .reduce((acc, t) => acc + t.amount, 0) : 0;
 
-    const usedLimit = w.hasCredit ? transactions
-        .filter(t => t.walletId === w.id && t.paymentMethod === 'credit' && !t.isPaidCredit)
-        .reduce((acc, t) => acc + t.amount, 0) : 0;
-
-    return { ...w, balance, currentInvoice, currentInvoiceDate, usedLimit };
-  });
+      return { ...w, balance, currentInvoice, currentInvoiceDate, usedLimit };
+    });
+  }, [wallets, transactions]);
 
   // Handlers
   const handleFormSubmit = async (formData) => {
