@@ -44,7 +44,7 @@ export function useSubscriptions() {
       type, 
       day: parseInt(day),
       walletId: walletId || null,
-      paymentMethod, // Salva se é crédito ou débito
+      paymentMethod, 
       lastProcessedMonth: initialPaymentMade ? currentMonth : lastMonth,
       active: true
     });
@@ -70,13 +70,14 @@ export function useSubscriptions() {
     await deleteDoc(doc(db, "subscriptions", id));
   };
 
-  // Helper para calcular data da fatura (Duplicado do useTransactions para evitar dep circular)
+  // Helper para calcular data da fatura (CORRIGIDO PARA >=)
   const getInvoiceDate = (dateObj, closingDay) => {
       const day = dateObj.getDate();
       let month = dateObj.getMonth();
       let year = dateObj.getFullYear();
 
-      if (day > closingDay) {
+      // Se processou no dia do fechamento ou depois, próxima fatura
+      if (day >= closingDay) {
           month++;
           if (month > 11) {
               month = 0;
@@ -97,29 +98,24 @@ export function useSubscriptions() {
     const q = query(collection(db, "subscriptions"), where("uid", "==", currentUser.uid), where("active", "==", true));
     const snapshot = await getDocs(q);
 
-    // Itera usando for...of para garantir sincronia se necessário, embora forEach funcione com async/await soltos
     for (const subDoc of snapshot.docs) {
       const sub = subDoc.data();
       
-      // Se ainda não processou este mês E hoje já é (ou passou do) dia de vencimento
       if (sub.lastProcessedMonth !== currentMonth && currentDay >= sub.day) {
         
         let invoiceDate = null;
         let paymentMethod = sub.paymentMethod || 'debit';
 
-        // Se for crédito, calcula a fatura
         if (paymentMethod === 'credit' && sub.walletId && wallets) {
             const wallet = wallets.find(w => w.id === sub.walletId);
             if (wallet && wallet.hasCredit && wallet.closingDay) {
-                // A data da transação será HOJE (dia do processamento)
-                invoiceDate = getInvoiceDate(today, wallet.closingDay);
+                // Usa a nova lógica >=
+                invoiceDate = getInvoiceDate(today, parseInt(wallet.closingDay));
             } else {
-                // Se a carteira não tem crédito ou não existe, fallback para débito
                 paymentMethod = 'debit';
             }
         }
 
-        // Chama a função de adicionar transação passada pelo Dashboard
         await addTransactionFn(
           sub.amount, 
           sub.category, 
@@ -127,11 +123,11 @@ export function useSubscriptions() {
           sub.type || 'expense',
           false,        
           `Assinatura Mensal: ${sub.name}`,
-          today.toLocaleDateString('en-CA'), // Data da transação = Hoje
+          today.toLocaleDateString('en-CA'),
           sub.walletId,
-          subDoc.id, // subscriptionId
-          paymentMethod, // Novo
-          invoiceDate    // Novo
+          subDoc.id, 
+          paymentMethod, 
+          invoiceDate    
         );
 
         await updateDoc(doc(db, "subscriptions", subDoc.id), { lastProcessedMonth: currentMonth });

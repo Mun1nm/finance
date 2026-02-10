@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { Wallet, ArrowRightLeft, Plus, Star, Trash2, AlertTriangle, Clock, CreditCard, Check, Save, Pencil, Loader2, Receipt, Calendar, ChevronDown } from "lucide-react"; 
+import { Wallet, ArrowRightLeft, Plus, Star, Trash2, AlertTriangle, Clock, CreditCard, Receipt, Loader2, Calendar, ChevronDown, Check } from "lucide-react"; 
 import { useWallets } from "../../hooks/useWallets";
 import { useTransactions } from "../../hooks/useTransactions";
 import { MoneyInput } from "../ui/MoneyInput"; 
+import { InvoiceModal } from "./InvoiceModal"; 
 
 export function WalletManager({ 
   wallets, 
@@ -36,9 +37,6 @@ export function WalletManager({
   const [walletDestinyId, setWalletDestinyId] = useState("");
 
   const [invoiceModalWallet, setInvoiceModalWallet] = useState(null);
-  const [editingLimit, setEditingLimit] = useState(false);
-  const [newLimitValue, setNewLimitValue] = useState(""); 
-  
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -109,44 +107,15 @@ export function WalletManager({
     }
   };
 
-  const handlePayInvoice = async () => {
-      if (!invoiceModalWallet || isSubmitting) return;
-      const { balance, currentInvoice, currentInvoiceDate, id } = invoiceModalWallet;
-
-      if (balance < currentInvoice) {
+  const handlePayInvoice = async (walletId, amount, invoiceDate, transactionIds) => {
+      const wallet = walletBalances.find(w => w.id === walletId);
+      if (wallet.balance < amount) {
           setNotification({ msg: "Saldo insuficiente nesta carteira!", type: "error" });
-          return;
+          throw new Error("Saldo insuficiente");
       }
 
-      try {
-          setIsSubmitting(true);
-          const transactionsToPay = transactions
-            .filter(t => t.walletId === id && t.paymentMethod === 'credit' && t.invoiceDate === currentInvoiceDate && !t.isPaidCredit)
-            .map(t => t.id);
-
-          await payInvoice(id, currentInvoice, currentInvoiceDate, transactionsToPay);
-          setInvoiceModalWallet(null);
-          setNotification({ msg: "Fatura paga com sucesso!", type: "success" });
-      } catch (error) {
-          console.error("Erro", error);
-          setNotification({ msg: "Erro ao pagar fatura.", type: "error" });
-      } finally {
-          setIsSubmitting(false);
-      }
-  };
-
-  const handleUpdateLimit = async () => {
-      if (!newLimitValue || isNaN(newLimitValue) || isSubmitting) return;
-      try {
-          setIsSubmitting(true);
-          await updateWallet(invoiceModalWallet.id, { creditLimit: parseFloat(newLimitValue) });
-          setEditingLimit(false);
-          setNotification({ msg: "Limite atualizado!", type: "success" });
-      } catch (error) {
-          console.error("Erro", error);
-      } finally {
-          setIsSubmitting(false);
-      }
+      await payInvoice(walletId, amount, invoiceDate, transactionIds);
+      setNotification({ msg: "Fatura paga com sucesso!", type: "success" });
   };
 
   const initiateWalletDeletion = (wallet) => {
@@ -280,14 +249,13 @@ export function WalletManager({
                             <input type="text" className="w-full bg-gray-700 p-3 rounded-lg text-white outline-none focus:ring-2 focus:ring-blue-500" value={newWalletName} onChange={e => setNewWalletName(e.target.value)} required autoFocus />
                         </div>
                         
-                        {/* CORREÇÃO AQUI: Padding reduzido e margem condicional */}
                         <div className={`p-2 rounded-lg border transition-all ${hasCredit ? 'bg-purple-500/10 border-purple-500' : 'bg-gray-700/30 border-gray-600'}`}>
                             <div className={`flex items-center gap-2 ${hasCredit ? 'mb-2' : ''}`}>
                                 <div className="relative flex items-center">
                                     <input type="checkbox" id="creditCheck" checked={hasCredit} onChange={(e) => setHasCredit(e.target.checked)} className="peer appearance-none w-5 h-5 rounded border border-gray-500 bg-gray-800 checked:bg-purple-600 checked:border-purple-600 transition-colors cursor-pointer" />
                                     <Check size={12} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white pointer-events-none opacity-0 peer-checked:opacity-100" />
                                 </div>
-                                <label htmlFor="creditCheck" className="text-sm text-gray-300 cursor-pointer select-none">Possui função crédito?</label>
+                                <label htmlFor="creditCheck" className="text-sm text-gray-300 cursor-pointer select-none">Possui Função Crédito?</label>
                             </div>
                             
                             {hasCredit && (
@@ -405,54 +373,14 @@ export function WalletManager({
             </div>
         )}
 
-        {/* MODAL PAGAMENTO FATURA */}
+        {/* MODAL DE FATURAS (NOVO) */}
         {invoiceModalWallet && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in">
-                <div className="bg-gray-800 p-6 rounded-2xl w-full max-w-md border border-purple-500/30 animate-scale-up shadow-2xl relative">
-                    <button onClick={() => setInvoiceModalWallet(null)} className="absolute top-4 right-4 text-gray-400 hover:text-white"><Plus size={24} className="rotate-45" /></button>
-                    <div className="flex flex-col mb-4">
-                        <h3 className="font-bold text-lg text-white flex items-center gap-2"><CreditCard className="text-purple-400" /> {invoiceModalWallet.name}</h3>
-                        <p className="text-xs text-gray-400 mt-1">Vencimento dia {invoiceModalWallet.dueDay} • Fechamento dia {invoiceModalWallet.closingDay}</p>
-                    </div>
-                    {invoiceModalWallet.hasCredit && (
-                        <div className="mb-5 bg-gray-700/30 p-3 rounded-lg border border-gray-600">
-                            <div className="flex justify-between items-end mb-1">
-                                <span className="text-[10px] text-gray-400 uppercase font-bold">Limite Utilizado</span>
-                                {editingLimit ? (
-                                    <div className="flex gap-1 items-center">
-                                        <input type="number" inputMode="numeric" autoFocus className="w-24 bg-gray-900 border border-purple-500 rounded text-xs text-white p-1 text-right outline-none" value={newLimitValue} onChange={e => setNewLimitValue(e.target.value)} placeholder={invoiceModalWallet.creditLimit} />
-                                        <button onClick={handleUpdateLimit} className="bg-green-600 p-1 rounded text-white hover:bg-green-500"><Save size={12}/></button>
-                                    </div>
-                                ) : (
-                                    <div className="text-xs text-purple-200 flex gap-2 items-center">
-                                        <span>R$ {(invoiceModalWallet.usedLimit || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} <span className="text-gray-500 mx-1">/</span> {invoiceModalWallet.creditLimit > 0 ? `R$ ${invoiceModalWallet.creditLimit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : "Sem Limite Definido"}</span>
-                                        <button onClick={() => { setEditingLimit(true); setNewLimitValue(invoiceModalWallet.creditLimit || ""); }} className="text-gray-500 hover:text-white underline p-1 hover:bg-gray-600 rounded"><Pencil size={14} /></button>
-                                    </div>
-                                )}
-                            </div>
-                            <div className="w-full bg-gray-700 h-2 rounded-full overflow-hidden">
-                                <div className={`h-full transition-all duration-500 ${invoiceModalWallet.creditLimit > 0 && (invoiceModalWallet.usedLimit / invoiceModalWallet.creditLimit) > 0.9 ? 'bg-red-500' : 'bg-purple-500'}`} style={{ width: `${invoiceModalWallet.creditLimit > 0 ? Math.min(((invoiceModalWallet.usedLimit || 0) / invoiceModalWallet.creditLimit) * 100, 100) : 0}%` }}></div>
-                            </div>
-                        </div>
-                    )}
-                    <div className="mb-6 bg-purple-900/20 p-4 rounded-xl border border-purple-500/30 text-center">
-                        <p className="text-purple-300 text-sm mb-1">Valor da Fatura Aberta</p>
-                        <span className="text-3xl font-bold text-white">R$ {invoiceModalWallet.currentInvoice.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                    </div>
-                    <div className="max-h-[35vh] overflow-y-auto pr-2 mb-4 space-y-2 scrollbar-thin">
-                        {transactions.length === 0 && <p className="text-center text-gray-500 text-sm py-4">Sem compras nesta fatura.</p>}
-                        {transactions.filter(t => t.walletId === invoiceModalWallet.id && t.paymentMethod === 'credit' && t.invoiceDate === invoiceModalWallet.currentInvoiceDate).map(t => (
-                            <div key={t.id} className="flex justify-between items-center text-sm p-2 bg-gray-700/30 rounded border border-transparent hover:border-gray-600 transition-colors">
-                                <span className="text-gray-300 truncate pr-2">{t.category}{t.description ? ` - ${t.description}` : ''}</span>
-                                <span className="text-white font-bold whitespace-nowrap">R$ {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
-                            </div>
-                        ))}
-                    </div>
-                    <button onClick={handlePayInvoice} className="w-full py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-colors flex items-center justify-center gap-2 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed" disabled={invoiceModalWallet.currentInvoice <= 0 || isSubmitting}>
-                        {isSubmitting ? <Loader2 className="animate-spin" size={18} /> : <><Check size={18} /> Pagar Fatura</>}
-                    </button>
-                </div>
-            </div>
+            <InvoiceModal 
+                wallet={invoiceModalWallet}
+                transactions={transactions}
+                onClose={() => setInvoiceModalWallet(null)}
+                onPayInvoice={handlePayInvoice}
+            />
         )}
     </div>
   );
