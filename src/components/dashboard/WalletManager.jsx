@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Wallet, ArrowRightLeft, Plus, Star, Trash2, AlertTriangle, Clock, CreditCard, Receipt, Loader2, Calendar, ChevronDown, Check } from "lucide-react"; 
+import { Wallet, ArrowRightLeft, Plus, Star, Trash2, AlertTriangle, Clock, CreditCard, Receipt, Loader2, Calendar, ChevronDown, Check, Save, Pencil, Calculator } from "lucide-react"; 
 import { useWallets } from "../../hooks/useWallets";
 import { useTransactions } from "../../hooks/useTransactions";
 import { MoneyInput } from "../ui/MoneyInput"; 
@@ -21,6 +21,9 @@ export function WalletManager({
 }) {
   const { updateWallet } = useWallets();
   const { payInvoice } = useTransactions();
+
+  // Estado para controlar a visualização do saldo líquido
+  const [showNetBalance, setShowNetBalance] = useState(false);
 
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [transferData, setTransferData] = useState({ from: '', to: '', amount: '', date: new Date().toLocaleDateString('en-CA') });
@@ -47,6 +50,10 @@ export function WalletManager({
           }
       }
   }, [walletBalances]);
+
+  // CÁLCULO DO SALDO LÍQUIDO (Projeção)
+  const totalInvoices = walletBalances.reduce((acc, w) => acc + (w.currentInvoice || 0), 0);
+  const displayBalance = showNetBalance ? overallBalance - totalInvoices : overallBalance;
 
   const handleCreateWallet = async (e) => {
     e.preventDefault();
@@ -118,6 +125,20 @@ export function WalletManager({
       setNotification({ msg: "Fatura paga com sucesso!", type: "success" });
   };
 
+  const handleUpdateLimit = async () => {
+      if (!newLimitValue || isNaN(newLimitValue) || isSubmitting) return;
+      try {
+          setIsSubmitting(true);
+          await updateWallet(invoiceModalWallet.id, { creditLimit: parseFloat(newLimitValue) });
+          setEditingLimit(false);
+          setNotification({ msg: "Limite atualizado!", type: "success" });
+      } catch (error) {
+          console.error("Erro", error);
+      } finally {
+          setIsSubmitting(false);
+      }
+  };
+
   const initiateWalletDeletion = (wallet) => {
     if (wallets.length <= 1) {
         setNotification({ msg: "Você precisa ter pelo menos uma carteira.", type: "warning" });
@@ -183,16 +204,29 @@ export function WalletManager({
                     <Wallet size={16} /> Minhas Contas
                 </h3>
                 <div className="flex items-center gap-3">
-                     <span className="text-2xl font-bold text-white">
-                        R$ {overallBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                     {/* VALOR DO SALDO (Muda de cor se for projeção) */}
+                     <span className={`text-2xl font-bold transition-colors ${showNetBalance ? 'text-orange-300' : 'text-white'}`}>
+                        R$ {displayBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                      </span>
+                     
+                     {/* BOTÃO CALCULADORA (Estilo Ativo/Inativo) */}
+                     <button 
+                        onClick={() => setShowNetBalance(!showNetBalance)}
+                        className={`p-1.5 rounded-lg transition-all ${showNetBalance ? 'bg-orange-500/20 text-orange-400' : 'hover:bg-gray-700 text-gray-500 hover:text-white'}`}
+                        title={showNetBalance ? "Voltar ao saldo total" : "Simular saldo líquido (descontar faturas)"}
+                     >
+                        <Calculator size={18} />
+                     </button>
+
                      {futureBalance > 0 && (
-                        <button onClick={onOpenFutureModal} className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/40 px-2 py-1 rounded flex items-center gap-1 hover:bg-blue-500/30 transition-colors">
+                        <button onClick={onOpenFutureModal} className="text-[10px] bg-blue-500/20 text-blue-300 border border-blue-500/40 px-2 py-1 rounded flex items-center gap-1 hover:bg-blue-500/30 transition-colors ml-2">
                             <Clock size={12} /> + R$ {futureBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </button>
                      )}
                 </div>
-                <span className="text-[10px] text-gray-500 font-medium">Total Acumulado</span>
+                <span className={`text-[10px] font-medium transition-colors ${showNetBalance ? 'text-orange-300/70' : 'text-gray-500'}`}>
+                    {showNetBalance ? "Líquido (Descontando Faturas)" : "Total Acumulado"}
+                </span>
             </div>
             
             <div className="flex gap-2 w-full sm:w-auto">
@@ -373,7 +407,7 @@ export function WalletManager({
             </div>
         )}
 
-        {/* MODAL DE FATURAS (NOVO) */}
+        {/* MODAL DE FATURA (NOVO) */}
         {invoiceModalWallet && (
             <InvoiceModal 
                 wallet={invoiceModalWallet}
