@@ -14,11 +14,10 @@ import { WalletManager } from "../components/dashboard/WalletManager";
 import { MonthNavigator } from "../components/dashboard/MonthNavigator";
 import { AnalysisSection } from "../components/dashboard/AnalysisSection";
 import { FutureTransactionsModal } from "../components/dashboard/FutureTransactionsModal";
-import { BudgetModal } from "../components/dashboard/BudgetModal"; // <--- Import
+import { BudgetModal } from "../components/dashboard/BudgetModal"; 
 
 export default function Dashboard() {
   const { transactions, addTransaction, deleteTransaction, updateTransaction, toggleDebtStatus, addTransfer, confirmFutureReceipt } = useTransactions();
-  // Pega budgets e saveBudget
   const { categories, budgets, saveBudget } = useCategories(); 
   const { assets, addContribution, removeContribution } = useInvestments();
   const { wallets, addWallet, setAsDefault, deleteWallet } = useWallets(); 
@@ -31,7 +30,7 @@ export default function Dashboard() {
   const [notification, setNotification] = useState(null);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null });
   const [futureModalOpen, setFutureModalOpen] = useState(false); 
-  const [budgetModalOpen, setBudgetModalOpen] = useState(false); // <--- State do Modal
+  const [budgetModalOpen, setBudgetModalOpen] = useState(false);
 
   const hasProcessedSubscriptions = useRef(false);
 
@@ -103,6 +102,7 @@ export default function Dashboard() {
         }, 0);
 
       let currentInvoice = 0;
+      let allUnpaidInvoices = 0; // <--- NOVO: Total de todas as faturas futuras
       let currentInvoiceDate = "";
       
       if (w.hasCredit) {
@@ -118,8 +118,14 @@ export default function Dashboard() {
           }
           currentInvoiceDate = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`;
 
+          // Fatura do Mês Atual (mantido para exibição na lista)
           currentInvoice = transactions
               .filter(t => t.walletId === w.id && t.paymentMethod === 'credit' && t.invoiceDate === currentInvoiceDate && !t.isPaidCredit)
+              .reduce((acc, t) => acc + t.amount, 0);
+
+          // CÁLCULO DE TODAS AS FATURAS EM ABERTO (FUTURAS INCLUÍDAS)
+          allUnpaidInvoices = transactions
+              .filter(t => t.walletId === w.id && t.paymentMethod === 'credit' && !t.isPaidCredit)
               .reduce((acc, t) => acc + t.amount, 0);
       }
 
@@ -127,7 +133,7 @@ export default function Dashboard() {
           .filter(t => t.walletId === w.id && t.paymentMethod === 'credit' && !t.isPaidCredit)
           .reduce((acc, t) => acc + t.amount, 0) : 0;
 
-      return { ...w, balance, currentInvoice, currentInvoiceDate, usedLimit };
+      return { ...w, balance, currentInvoice, allUnpaidInvoices, currentInvoiceDate, usedLimit };
     });
   }, [wallets, transactions]);
 
@@ -208,8 +214,8 @@ export default function Dashboard() {
             transactions={filteredTransactions.filter(t => !t.isTransfer)} 
             assets={assets} 
             totalBalance={monthlyBalance}
-            budgets={budgets} // Passando orçamentos
-            onOpenBudgetModal={() => setBudgetModalOpen(true)} // Abrir Modal
+            budgets={budgets}
+            onOpenBudgetModal={() => setBudgetModalOpen(true)}
         />
 
         <WalletManager 
@@ -266,12 +272,11 @@ export default function Dashboard() {
         onConfirmReceipt={handleConfirmReceipt}
       />
 
-      {/* NOVO MODAL DE ORÇAMENTOS */}
       <BudgetModal 
         isOpen={budgetModalOpen}
         onClose={() => setBudgetModalOpen(false)}
         budgets={budgets}
-        transactions={filteredTransactions} // Passa transações do mês para cálculo
+        transactions={filteredTransactions}
         saveBudget={saveBudget}
       />
     </div>
