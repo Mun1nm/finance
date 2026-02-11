@@ -1,26 +1,19 @@
-import { ArrowUpCircle, ArrowDownCircle, Wallet, TrendingUp } from "lucide-react";
+import { ArrowUpCircle, ArrowDownCircle, Wallet, TrendingUp, AlertCircle } from "lucide-react";
 
-// Adicionei a prop 'totalBalance'
-export function Summary({ transactions, assets = [], totalBalance }) { 
+export function Summary({ transactions, assets = [], totalBalance, budgets = [], onOpenBudgetModal }) { 
 
-  // --- CÁLCULOS MENSAIS (Para mostrar o fluxo do mês selecionado) ---
-  
   const income = transactions
     .filter((t) => t.type === "income")
     .reduce((acc, t) => acc + t.amount, 0);
 
-  // Despesas do mês (ignorando as que foram reembolsadas este mês)
   const expense = transactions
     .filter((t) => t.type === "expense")
     .filter((t) => !(t.isDebt && t.debtPaid))
     .reduce((acc, t) => acc + t.amount, 0);
 
-  // Aportes do mês
   const investmentsFlow = transactions
     .filter((t) => t.type === "investment")
     .reduce((acc, t) => acc + t.amount, 0);
-
-  // --- CÁLCULOS DE PATRIMÔNIO E DÍVIDAS ---
 
   const pendingDebt = transactions
     .filter((t) => t.isDebt && !t.debtPaid)
@@ -28,10 +21,21 @@ export function Summary({ transactions, assets = [], totalBalance }) {
 
   const totalNetWorth = assets.reduce((acc, a) => acc + (a.currentValue || 0), 0);
 
+  // --- ORÇAMENTO ---
+  const totalBudgetLimit = budgets.reduce((acc, b) => acc + b.limit, 0);
+  
+  const relevantExpense = transactions
+    .filter((t) => t.type === "expense" && !(t.isDebt && t.debtPaid))
+    .filter((t) => budgets.some(b => b.macro === t.macro))
+    .reduce((acc, t) => acc + t.amount, 0);
+
+  const remainingBudget = totalBudgetLimit - relevantExpense;
+  const isOverBudget = remainingBudget < 0;
+
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
       
-      {/* 1. Entradas (Mês) */}
+      {/* 1. Entradas */}
       <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 flex items-center justify-between lg:flex-col lg:justify-center">
         <span className="text-gray-400 text-xs uppercase font-bold lg:mb-1">Entradas (Mês)</span>
         <div className="flex items-center gap-2 text-green-400">
@@ -40,34 +44,66 @@ export function Summary({ transactions, assets = [], totalBalance }) {
         </div>
       </div>
 
-      {/* 2. Saídas (Mês) */}
-      <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 flex items-center justify-between lg:flex-col lg:justify-center">
-        <span className="text-gray-400 text-xs uppercase font-bold lg:mb-1">Saídas (Mês)</span>
-        <div className="flex items-center gap-2 text-red-400">
-          <ArrowDownCircle size={24} className="lg:w-6 lg:h-6" />
-          <span className="font-bold text-xl lg:text-2xl">R$ {expense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+      {/* 2. SAÍDAS (CORRIGIDO: Estrutura Híbrida Mobile/Desktop) */}
+      <div 
+        onClick={totalBudgetLimit > 0 ? onOpenBudgetModal : undefined}
+        className={`bg-gray-800 p-4 rounded-xl border border-gray-700 flex flex-col justify-center relative overflow-hidden ${totalBudgetLimit > 0 ? 'cursor-pointer hover:border-red-500/50 transition-colors' : ''} lg:items-center`}
+      >
+        {/* Wrapper: w-full no mobile (para separar título/valor), w-auto no desktop (para linha compacta) */}
+        <div className="z-10 w-full lg:w-auto flex flex-col lg:items-center">
+            
+            {/* Header: Row no Mobile, Col no Desktop */}
+            <div className="flex items-center justify-between w-full lg:flex-col lg:justify-center lg:gap-1">
+                <span className="text-gray-400 text-xs uppercase font-bold flex items-center gap-1">
+                    Saídas (Mês)
+                    {totalBudgetLimit > 0 && isOverBudget && <AlertCircle size={12} className="text-red-500"/>}
+                </span>
+                
+                <div className="flex items-center gap-2 text-red-400">
+                    <ArrowDownCircle size={24} className="lg:w-6 lg:h-6" />
+                    <span className="font-bold text-xl lg:text-2xl">R$ {expense.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
+            </div>
+
+            {/* Linha do Orçamento */}
+            {totalBudgetLimit > 0 && (
+                <div className="mt-1 lg:mt-2 pt-2 border-t border-red-500/30 w-full flex flex-col items-end lg:items-center">
+                    <span className={`text-[10px] uppercase ${isOverBudget ? 'text-red-500 font-bold' : 'text-gray-400'}`}>
+                        {isOverBudget ? 'Excedido' : 'Disponível'}
+                    </span>
+                    <span className={`text-sm font-bold ${isOverBudget ? 'text-red-400' : 'text-white'}`}>
+                        R$ {Math.abs(remainingBudget).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                    </span>
+                </div>
+            )}
         </div>
       </div>
 
-      {/* 3. Investimentos */}
-      <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 flex items-center justify-between lg:flex-col lg:justify-center relative overflow-hidden">
-        <div className="z-10 flex flex-col items-start lg:items-center">
-            <span className="text-purple-400 text-xs uppercase font-bold lg:mb-1">Aportes (Mês)</span>
-            <div className="flex items-center gap-2 text-purple-300">
-            <TrendingUp size={24} className="lg:w-6 lg:h-6" />
-            <span className="font-bold text-xl lg:text-2xl">R$ {investmentsFlow.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+      {/* 3. INVESTIMENTOS (Mesma correção aplicada) */}
+      <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 flex flex-col justify-center relative overflow-hidden lg:items-center">
+        
+        <div className="z-10 w-full lg:w-auto flex flex-col lg:items-center">
+            {/* Header */}
+            <div className="flex items-center justify-between w-full lg:flex-col lg:justify-center lg:gap-1">
+                <span className="text-purple-400 text-xs uppercase font-bold">Aportes (Mês)</span>
+                
+                <div className="flex items-center gap-2 text-purple-300">
+                    <TrendingUp size={24} className="lg:w-6 lg:h-6" />
+                    <span className="font-bold text-xl lg:text-2xl">R$ {investmentsFlow.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
+                </div>
             </div>
             
-            <div className="mt-1 lg:mt-2 pt-2 border-t border-purple-500/30 w-full flex flex-col lg:items-center">
+            {/* Linha Patrimônio */}
+            <div className="mt-1 lg:mt-2 pt-2 border-t border-purple-500/30 w-full flex flex-col items-end lg:items-center">
                 <span className="text-[10px] text-gray-400 uppercase">Patrimônio Total</span>
                 <span className="text-sm font-bold text-white">R$ {totalNetWorth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
             </div>
         </div>
+        
         <div className="absolute -right-6 -top-6 w-20 h-20 bg-purple-500/10 rounded-full blur-2xl"></div>
       </div>
 
-      {/* 4. SALDO EM CONTA (TOTAL ACUMULADO) */}
-      {/* Aqui usamos a prop totalBalance que veio da Dashboard */}
+      {/* 4. SALDO */}
       <div className={`bg-gray-800 p-4 rounded-xl border flex flex-col items-center justify-center relative ${totalBalance < 0 ? 'border-red-500/50' : 'border-blue-500/50'}`}>
         <span className="text-gray-400 text-xs uppercase font-bold mb-1">Saldo em Caixa (Mês)</span>
         <div className="flex items-center gap-2 text-white">

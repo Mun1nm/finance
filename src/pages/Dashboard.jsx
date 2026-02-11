@@ -14,10 +14,12 @@ import { WalletManager } from "../components/dashboard/WalletManager";
 import { MonthNavigator } from "../components/dashboard/MonthNavigator";
 import { AnalysisSection } from "../components/dashboard/AnalysisSection";
 import { FutureTransactionsModal } from "../components/dashboard/FutureTransactionsModal";
+import { BudgetModal } from "../components/dashboard/BudgetModal"; // <--- Import
 
 export default function Dashboard() {
   const { transactions, addTransaction, deleteTransaction, updateTransaction, toggleDebtStatus, addTransfer, confirmFutureReceipt } = useTransactions();
-  const { categories } = useCategories();
+  // Pega budgets e saveBudget
+  const { categories, budgets, saveBudget } = useCategories(); 
   const { assets, addContribution, removeContribution } = useInvestments();
   const { wallets, addWallet, setAsDefault, deleteWallet } = useWallets(); 
   const { createSubscription, processSubscriptions, updateSubscription } = useSubscriptions();
@@ -29,10 +31,10 @@ export default function Dashboard() {
   const [notification, setNotification] = useState(null);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null });
   const [futureModalOpen, setFutureModalOpen] = useState(false); 
+  const [budgetModalOpen, setBudgetModalOpen] = useState(false); // <--- State do Modal
 
   const hasProcessedSubscriptions = useRef(false);
 
-  // Processamento de Assinaturas
   useEffect(() => {
     if (hasProcessedSubscriptions.current || wallets.length === 0) return; 
     hasProcessedSubscriptions.current = true;
@@ -43,7 +45,7 @@ export default function Dashboard() {
     }, wallets);
   }, [wallets]);
 
-  // 1. Só filtra as transações se 'transactions' ou 'currentDate' mudarem
+  // --- OTIMIZAÇÃO DE PERFORMANCE (useMemo) ---
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
       if (!t.date) return false;
@@ -53,7 +55,6 @@ export default function Dashboard() {
     });
   }, [transactions, currentDate]);
 
-  // 2. Só recalcula o saldo mensal se a lista filtrada mudar
   const monthlyBalance = useMemo(() => {
     return filteredTransactions.reduce((acc, t) => {
       if (t.isFuture || t.isTransfer) return acc;
@@ -67,7 +68,6 @@ export default function Dashboard() {
     }, 0);
   }, [filteredTransactions]);
 
-  // 3. Só recalcula o saldo total se 'transactions' mudar
   const overallBalance = useMemo(() => {
     return transactions.reduce((acc, t) => {
       if (t.isFuture || t.isTransfer) return acc; 
@@ -83,14 +83,12 @@ export default function Dashboard() {
     }, 0);
   }, [transactions]);
 
-  // 4. Futuro também memorizado
   const { futureTransactions, futureBalance } = useMemo(() => {
     const ft = transactions.filter(t => t.isFuture && t.type === 'income');
     const fb = ft.reduce((acc, t) => acc + t.amount, 0);
     return { futureTransactions: ft, futureBalance: fb };
   }, [transactions]);
 
-  // 5. O cálculo mais pesado (Carteiras) agora é memorizado
   const walletBalances = useMemo(() => {
     return wallets.map(w => {
       const balance = transactions
@@ -133,7 +131,6 @@ export default function Dashboard() {
     });
   }, [wallets, transactions]);
 
-  // Handlers
   const handleFormSubmit = async (formData) => {
     const { amount, categoryName, macro, type, isSubscription, isDebt, description, assetId, date, walletId, dueDay, personId, isFuture, paymentMethod, invoiceDate, installments, closingDay } = formData;
     const todayDay = new Date().getDate();
@@ -210,7 +207,9 @@ export default function Dashboard() {
         <Summary 
             transactions={filteredTransactions.filter(t => !t.isTransfer)} 
             assets={assets} 
-            totalBalance={monthlyBalance} 
+            totalBalance={monthlyBalance}
+            budgets={budgets} // Passando orçamentos
+            onOpenBudgetModal={() => setBudgetModalOpen(true)} // Abrir Modal
         />
 
         <WalletManager 
@@ -265,6 +264,15 @@ export default function Dashboard() {
         transactions={futureTransactions}
         totalValue={futureBalance}
         onConfirmReceipt={handleConfirmReceipt}
+      />
+
+      {/* NOVO MODAL DE ORÇAMENTOS */}
+      <BudgetModal 
+        isOpen={budgetModalOpen}
+        onClose={() => setBudgetModalOpen(false)}
+        budgets={budgets}
+        transactions={filteredTransactions} // Passa transações do mês para cálculo
+        saveBudget={saveBudget}
       />
     </div>
   );

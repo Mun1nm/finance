@@ -1,26 +1,22 @@
 import { useState } from "react";
 import { useCategories } from "../hooks/useCategories";
-import { ArrowLeft, Trash2, ArrowUpCircle, ArrowDownCircle, Pencil, X, ChevronDown } from "lucide-react";
+import { ArrowLeft, Trash2, ArrowUpCircle, ArrowDownCircle, Pencil, X, ChevronDown, ChevronRight, Wallet, Check } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-
-const EXPENSE_MACROS = [
-  "Moradia", "Alimentação", "Transporte", "Lazer", 
-  "Saúde", "Educação", "Assinaturas", "Compras", "Outros"
-];
-
-const INCOME_MACROS = [
-  "Salário", "Freelance", "Investimentos (Retorno)", "Presentes", 
-  "Reembolso", "Vendas", "Premiação", "Outros"
-];
+import { EXPENSE_MACROS, INCOME_MACROS } from "../utils/constants"; 
+import { CompactMoneyInput } from "../components/ui/CompactMoneyInput"; 
 
 export default function CategoriesPage() {
-  const { categories, addCategory, deleteCategory, updateCategory } = useCategories();
+  const { categories, budgets, addCategory, deleteCategory, updateCategory, saveBudget } = useCategories();
   const navigate = useNavigate();
 
   const [newCat, setNewCat] = useState("");
   const [type, setType] = useState("expense"); 
   const [selectedMacro, setSelectedMacro] = useState(EXPENSE_MACROS[0]);
   const [editingId, setEditingId] = useState(null);
+  
+  const [isBudgetsOpen, setIsBudgetsOpen] = useState(false);
+  const [editingBudgetMacro, setEditingBudgetMacro] = useState(null);
+  const [tempLimit, setTempLimit] = useState("");
 
   let currentMacros = EXPENSE_MACROS;
   if (type === "income") currentMacros = INCOME_MACROS;
@@ -33,7 +29,6 @@ export default function CategoriesPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!newCat) return;
-    
     if (editingId) {
       await updateCategory(editingId, newCat, selectedMacro, type);
       setEditingId(null);
@@ -56,17 +51,23 @@ export default function CategoriesPage() {
     setSelectedMacro(currentMacros[0]);
   };
 
-  const getTypeConfig = (t) => {
-    switch(t) {
-      case 'income': return { color: 'green', icon: <ArrowUpCircle size={18} />, label: 'Entradas' };
-      default: return { color: 'red', icon: <ArrowDownCircle size={18} />, label: 'Saídas' };
-    }
+  const handleSaveBudget = async (macro) => {
+      await saveBudget(macro, tempLimit);
+      setEditingBudgetMacro(null);
   };
 
-  const activeConfig = getTypeConfig(type);
+  // Função para CANCELAR a edição (apenas fecha)
+  const handleCancelBudgetEdit = () => {
+      setEditingBudgetMacro(null);
+      setTempLimit("");
+  };
+
+  const activeConfig = type === 'income' 
+    ? { color: 'green', icon: <ArrowUpCircle size={18} />, label: 'Entradas' }
+    : { color: 'red', icon: <ArrowDownCircle size={18} />, label: 'Saídas' };
 
   return (
-    <div className="min-h-screen bg-gray-900 text-gray-100 p-4">
+    <div className="min-h-screen bg-gray-900 text-gray-100 p-4 pb-20">
       <header className="flex items-center gap-4 mb-6">
         <button onClick={() => navigate("/")} className="p-2 bg-gray-800 rounded-full hover:bg-gray-700 transition">
           <ArrowLeft />
@@ -91,6 +92,74 @@ export default function CategoriesPage() {
         </button>
       </div>
 
+      {/* --- SEÇÃO DE ORÇAMENTOS --- */}
+      {type === 'expense' && (
+        <div className="mb-6 bg-gray-800/50 border border-gray-700 rounded-xl overflow-hidden">
+            <div 
+                onClick={() => setIsBudgetsOpen(!isBudgetsOpen)}
+                className="p-4 flex items-center justify-between cursor-pointer hover:bg-gray-800 transition-colors"
+            >
+                <h3 className="text-gray-300 uppercase text-xs font-bold flex items-center gap-2">
+                    <Wallet size={16} className="text-blue-400"/> Limites de Gastos (Mensal)
+                </h3>
+                {isBudgetsOpen ? <ChevronDown size={18} className="text-gray-500"/> : <ChevronRight size={18} className="text-gray-500"/>}
+            </div>
+
+            {isBudgetsOpen && (
+                <div className="p-3 border-t border-gray-700/50 grid grid-cols-1 sm:grid-cols-2 gap-2 animate-fade-in bg-gray-900/30">
+                    {EXPENSE_MACROS.map(macro => {
+                        const budget = budgets.find(b => b.macro === macro);
+                        const limit = budget ? budget.limit : 0;
+                        const isEditing = editingBudgetMacro === macro;
+
+                        return (
+                            <div key={macro} className="bg-gray-800 border border-gray-700 px-3 py-2 rounded-lg flex justify-between items-center h-14">
+                                <span className="text-xs font-bold text-gray-400 uppercase">{macro}</span>
+                                
+                                <div className="flex items-center gap-2 justify-end min-w-[140px]">
+                                    {isEditing ? (
+                                        <div className="flex items-center gap-2 w-full justify-end">
+                                            <div className="w-24">
+                                              <CompactMoneyInput 
+                                                  value={tempLimit}
+                                                  onChange={setTempLimit}
+                                                  placeholder="0,00"
+                                                  autoFocus={true}
+                                              />
+                                            </div>
+                                            {/* Salvar */}
+                                            <button 
+                                                onClick={() => handleSaveBudget(macro)}
+                                                className="p-1 bg-gray-700 text-green-400 rounded hover:bg-gray-600 border border-gray-600"
+                                            >
+                                                <Check size={14} />
+                                            </button>
+                                            {/* Cancelar (X) */}
+                                            <button 
+                                                onClick={handleCancelBudgetEdit}
+                                                className="p-1 bg-gray-700 text-gray-400 rounded hover:bg-gray-600 border border-gray-600"
+                                            >
+                                                <X size={14} />
+                                            </button>
+                                        </div>
+                                    ) : (
+                                        <div 
+                                            onClick={() => { setEditingBudgetMacro(macro); setTempLimit(limit); }}
+                                            className={`cursor-pointer px-3 py-1.5 rounded text-xs font-bold border transition-colors ${limit > 0 ? 'border-blue-500/30 text-blue-400 bg-blue-500/10 hover:bg-blue-500/20' : 'border-gray-600 text-gray-500 hover:border-gray-500'}`}
+                                        >
+                                            {limit > 0 ? `R$ ${limit.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}` : 'Definir'}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            )}
+        </div>
+      )}
+
+      {/* FORMULÁRIO DE CATEGORIA */}
       <div className={`p-4 rounded-xl mb-6 border shadow-lg transition-colors ${editingId ? 'bg-blue-900/20 border-blue-500/50' : 'bg-gray-800 border-gray-700'}`}>
         
         {editingId && (
@@ -103,10 +172,8 @@ export default function CategoriesPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          
-          {/* CORREÇÃO AQUI: Estrutura Label + Div Relative para alinhamento perfeito */}
           <div>
-            <label className="text-xs text-gray-400 uppercase font-bold mb-1 block">Macro Categoria</label>
+            <label className="text-xs text-gray-400 uppercase font-bold mb-1 block pt-2">Macro Categoria</label>
             <div className="relative">
               <select 
                 value={selectedMacro} 
@@ -120,7 +187,7 @@ export default function CategoriesPage() {
           </div>
 
           <div>
-            <label className="text-xs text-gray-400 uppercase font-bold mb-1 block">Nome da Categoria</label>
+            <label className="text-xs text-gray-400 uppercase font-bold mb-1 block pt-2">Nome da Categoria</label>
             <input 
               type="text" 
               placeholder="Nome da categoria..."
