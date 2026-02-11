@@ -24,7 +24,6 @@ export function WalletManager({
 }) {
   const { payInvoice } = useTransactions();
 
-  // Estados de Modais
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [walletDeleteData, setWalletDeleteData] = useState(null);
@@ -32,7 +31,6 @@ export function WalletManager({
   
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Sincroniza dados da carteira do modal de fatura
   useEffect(() => {
       if (invoiceModalWallet) {
           const updatedWallet = walletBalances.find(w => w.id === invoiceModalWallet.id);
@@ -42,7 +40,6 @@ export function WalletManager({
       }
   }, [walletBalances]);
 
-  // Handlers
   const handleCreateWallet = async (name, hasCredit, closingDay, dueDay, creditLimit) => {
     try {
         setIsSubmitting(true);
@@ -135,10 +132,10 @@ export function WalletManager({
       setNotification({ msg: "Fatura paga com sucesso!", type: "success" });
   };
 
-  const totalInvoices = walletBalances.reduce((acc, w) => acc + (w.currentInvoice || 0), 0);
+  // CORRIGIDO: Usa 'allUnpaidInvoices' para somar TUDO (futuras inclusas)
+  const totalInvoices = walletBalances.reduce((acc, w) => acc + (w.allUnpaidInvoices || 0), 0);
 
   return (
-    // AJUSTE AQUI: Mudado de p-4 para p-6
     <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
         <WalletHeader 
             overallBalance={overallBalance}
