@@ -2,8 +2,8 @@ import { useState } from "react";
 import { usePeople } from "../hooks/usePeople";
 import { useTransactions } from "../hooks/useTransactions";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, UserPlus, User } from "lucide-react";
-import { PersonCard } from "../components/people/PersonCard"; // <--- Importando o componente
+import { ArrowLeft, UserPlus, User, Loader2 } from "lucide-react"; // <--- Loader2 importado
+import { PersonCard } from "../components/people/PersonCard";
 
 export default function PeoplePage() {
   const { people, addPerson, deletePerson } = usePeople();
@@ -11,15 +11,24 @@ export default function PeoplePage() {
   const navigate = useNavigate();
 
   const [newPersonName, setNewPersonName] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false); // <--- Estado de loading
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    if (!newPersonName.trim()) return;
-    await addPerson(newPersonName);
-    setNewPersonName("");
+    if (!newPersonName.trim() || isSubmitting) return; // <--- Bloqueia duplo clique
+
+    setIsSubmitting(true);
+    try {
+        await addPerson(newPersonName);
+        setNewPersonName("");
+    } catch (error) {
+        console.error("Erro ao adicionar:", error);
+    } finally {
+        setIsSubmitting(false);
+    }
   };
 
-  // Prepara os dados globais da pessoa (Saldo Total e Histórico Completo)
+  // Prepara os dados globais da pessoa
   const peopleWithData = people.map(person => {
     const history = transactions
         .filter(t => t.personId === person.id)
@@ -56,8 +65,12 @@ export default function PeoplePage() {
                 onChange={e => setNewPersonName(e.target.value)}
             />
          </div>
-         <button type="submit" className="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-lg font-bold">
-            <UserPlus size={20} />
+         <button 
+            type="submit" 
+            disabled={isSubmitting} // <--- Desabilita visualmente
+            className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed text-white p-3 rounded-lg font-bold min-w-[50px] flex items-center justify-center"
+         >
+            {isSubmitting ? <Loader2 className="animate-spin" size={20} /> : <UserPlus size={20} />}
          </button>
       </form>
 

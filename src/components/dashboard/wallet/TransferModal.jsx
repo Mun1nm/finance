@@ -49,13 +49,13 @@ export function TransferModal({ isOpen, onClose, onTransfer, wallets, isSubmitti
                     <MoneyInput value={amount} onChange={setAmount} />
                 </div>
 
-                <div className="relative">
+                <div className="relative overflow-hidden">
                     <label className="text-xs text-gray-400 mb-1 block">Data</label>
                     <div className="relative">
                         <Calendar size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                         <input 
                             type="date" 
-                            className="w-full bg-gray-700 p-3 pl-10 rounded-lg text-white outline-none focus:ring-2 focus:ring-blue-500 [&::-webkit-calendar-picker-indicator]:hidden"
+                            className="w-full bg-gray-700 p-3 pl-10 rounded-lg text-white outline-none focus:ring-2 focus:ring-blue-500 [&::-webkit-calendar-picker-indicator]:hidden appearance-none min-w-0 max-w-full"
                             value={date} 
                             onChange={e => setDate(e.target.value)} 
                             required 

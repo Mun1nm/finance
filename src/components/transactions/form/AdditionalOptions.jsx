@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { RefreshCw, Clock, User, Check, ChevronDown, Plus, X } from "lucide-react";
+import { RefreshCw, Clock, User, Check, ChevronDown, Plus, X, Loader2 } from "lucide-react"; // <--- Importei Loader2
 import { usePeople } from "../../../hooks/usePeople";
 
 export function AdditionalOptions({ 
@@ -14,12 +14,21 @@ export function AdditionalOptions({
   const { people, addPerson } = usePeople();
   const [isAddingPerson, setIsAddingPerson] = useState(false);
   const [newPersonName, setNewPersonName] = useState("");
+  const [isSubmittingPerson, setIsSubmittingPerson] = useState(false); // <--- Estado de Loading
 
   const handleQuickAddPerson = async () => {
-      if(!newPersonName.trim()) return;
-      await addPerson(newPersonName);
-      setNewPersonName("");
-      setIsAddingPerson(false);
+      if(!newPersonName.trim() || isSubmittingPerson) return; // <--- Bloqueia
+
+      setIsSubmittingPerson(true);
+      try {
+          await addPerson(newPersonName);
+          setNewPersonName("");
+          setIsAddingPerson(false);
+      } catch (error) {
+          console.error("Erro ao adicionar pessoa:", error);
+      } finally {
+          setIsSubmittingPerson(false);
+      }
   };
 
   return (
@@ -86,9 +95,31 @@ export function AdditionalOptions({
                          </>
                      ) : (
                          <div className="flex gap-2 flex-1">
-                             <input type="text" placeholder="Nome..." className="flex-1 bg-gray-900 text-white text-sm p-2 rounded border border-orange-500/50 outline-none" value={newPersonName} onChange={e => setNewPersonName(e.target.value)} autoFocus />
-                             <button type="button" onClick={handleQuickAddPerson} className="bg-orange-500 text-white px-3 rounded text-xs font-bold">OK</button>
-                             <button type="button" onClick={() => setIsAddingPerson(false)} className="bg-gray-600 text-white px-3 rounded text-xs"><X size={14}/></button>
+                             <input 
+                                type="text" 
+                                placeholder="Nome..." 
+                                className="flex-1 bg-gray-900 text-white text-sm p-2 rounded border border-orange-500/50 outline-none" 
+                                value={newPersonName} 
+                                onChange={e => setNewPersonName(e.target.value)} 
+                                autoFocus 
+                                onKeyDown={(e) => e.key === 'Enter' && handleQuickAddPerson()}
+                             />
+                             <button 
+                                type="button" 
+                                onClick={handleQuickAddPerson} 
+                                disabled={isSubmittingPerson}
+                                className="bg-orange-500 hover:bg-orange-600 text-white px-3 rounded text-xs font-bold flex items-center justify-center min-w-[40px]"
+                             >
+                                {isSubmittingPerson ? <Loader2 className="animate-spin" size={14}/> : "OK"}
+                             </button>
+                             <button 
+                                type="button" 
+                                onClick={() => setIsAddingPerson(false)} 
+                                disabled={isSubmittingPerson}
+                                className="bg-gray-600 hover:bg-gray-500 text-white px-3 rounded text-xs"
+                             >
+                                <X size={14}/>
+                             </button>
                          </div>
                      )}
                  </div>
