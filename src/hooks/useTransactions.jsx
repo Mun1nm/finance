@@ -12,7 +12,8 @@ import {
   updateDoc,
   doc,
   writeBatch,
-  getDocs 
+  getDocs,
+  getDoc // <--- Adicionei getDoc
 } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
 
@@ -30,7 +31,6 @@ export function useTransactions() {
         return;
     }
 
-    // ⚠️ ATENÇÃO: Isso exige o Índice: uid (ASC) + date (DESC) no Firebase
     const q = query(
       transactionRef,
       where("uid", "==", currentUser.uid),
@@ -45,7 +45,7 @@ export function useTransactions() {
       setTransactions(data);
       setLoading(false);
     }, (error) => {
-      console.error("Erro leitura transações:", error); // Log mais claro
+      console.error("Erro leitura transações:", error);
     });
 
     return unsubscribe;
@@ -89,7 +89,6 @@ export function useTransactions() {
     const baseAmount = parseFloat(amount);
     const installmentValue = installments > 1 ? baseAmount / installments : baseAmount;
     
-    // Tratamento de data seguro
     let baseDateObj;
     if (date) {
         const [y, m, d] = date.split('-').map(Number);
@@ -115,15 +114,15 @@ export function useTransactions() {
         }
 
         batch.set(docRef, {
-            uid: currentUser.uid, // OBRIGATÓRIO PARA AS REGRAS DE SEGURANÇA
+            uid: currentUser.uid,
             amount: installmentValue,
             category,
             macro,
             type,
             description: finalDesc,
-            isDebt: !!isDebt, // Garante booleano
+            isDebt: !!isDebt,
             debtPaid: false,
-            isFuture: !!isFuture, // Garante booleano
+            isFuture: !!isFuture,
             date: parseDate(currentInstallmentDateString),
             walletId: walletId || null,
             subscriptionId: subscriptionId || null,
@@ -186,10 +185,35 @@ export function useTransactions() {
     await batch.commit();
   };
 
+  // --- CORREÇÃO AQUI: Delete inteligente ---
   const deleteTransaction = async (id) => {
     if (!userProfile?.isAuthorized) return;
+    
     const docRef = doc(db, "transactions", id);
-    await deleteDoc(docRef);
+    const docSnap = await getDoc(docRef);
+
+    if (!docSnap.exists()) return;
+
+    const data = docSnap.data();
+
+    // Se for um Pagamento de Fatura, precisamos reverter as compras originais
+    if (data.isInvoicePayment && data.relatedTransactionIds && data.relatedTransactionIds.length > 0) {
+        const batch = writeBatch(db);
+        
+        // 1. Reverter status das compras originais para "Não Paga"
+        data.relatedTransactionIds.forEach(originalTxId => {
+            const originalRef = doc(db, "transactions", originalTxId);
+            batch.update(originalRef, { isPaidCredit: false });
+        });
+
+        // 2. Deletar o pagamento
+        batch.delete(docRef);
+
+        await batch.commit();
+    } else {
+        // Deleção normal
+        await deleteDoc(docRef);
+    }
   };
 
   const deleteTransactionsByAssetId = async (assetId) => {
@@ -198,7 +222,7 @@ export function useTransactions() {
     const q = query(
         transactionRef, 
         where("assetId", "==", assetId),
-        where("uid", "==", currentUser.uid) // CRÍTICO: Mantido para segurança
+        where("uid", "==", currentUser.uid)
     );
     
     const snapshot = await getDocs(q);
@@ -251,6 +275,7 @@ export function useTransactions() {
     });
   };
 
+  // --- CORREÇÃO AQUI: Salvar os IDs relacionados ---
   const payInvoice = async (walletId, amount, invoiceDate, transactionIds) => {
       if (!userProfile?.isAuthorized) return;
       const batch = writeBatch(db);
@@ -270,7 +295,8 @@ export function useTransactions() {
           walletId: walletId,
           paymentMethod: 'debit',
           isInvoicePayment: true, 
-          invoiceDate: invoiceDate
+          invoiceDate: invoiceDate,
+          relatedTransactionIds: transactionIds // <--- SALVAMOS OS IDs AQUI
       });
 
       transactionIds.forEach(id => {
