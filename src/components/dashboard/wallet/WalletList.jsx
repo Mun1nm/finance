@@ -8,7 +8,8 @@ export function WalletList({ wallets, onSetDefault, onDeleteClick, onWalletClick
                 <div className="absolute top-2 right-2 flex flex-col gap-1 z-10">
                     <button onClick={(e) => { e.stopPropagation(); onSetDefault(w.id); }} className={`p-1 rounded-full transition-colors hover:bg-gray-700/50 ${w.isDefault ? 'text-yellow-400' : 'text-gray-600 hover:text-yellow-200'}`}><Star size={12} fill={w.isDefault ? "currentColor" : "none"} /></button>
                     {!w.isDefault && (
-                        <button onClick={(e) => { e.stopPropagation(); onDeleteClick(w); }} className="p-1 rounded-full text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"><Trash2 size={12} /></button>
+                        // Ajuste aqui: opacity-100 por padrão (mobile), md:opacity-0 (esconde no desktop até hover), p-2 (maior clique)
+                        <button onClick={(e) => { e.stopPropagation(); onDeleteClick(w); }} className="p-2 rounded-full text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-100 md:opacity-0 md:group-hover:opacity-100"><Trash2 size={14} /></button>
                     )}
                 </div>
                 <div className="flex items-center gap-2 mb-1">

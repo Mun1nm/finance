@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Pencil, X, Calendar, Wallet, ChevronDown } from "lucide-react"; 
+import { Pencil, X, Calendar, Wallet, ChevronDown, Loader2 } from "lucide-react"; 
 import { MoneyInput } from "../ui/MoneyInput";
 import { TypeSelector } from "./form/TypeSelector";
 import { CategorySelector } from "./form/CategorySelector";
@@ -25,8 +25,25 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
   const [installmentsCount, setInstallmentsCount] = useState(2);
   const [dueDay, setDueDay] = useState(new Date().getDate());
 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const currentWallet = wallets.find(w => w.id === selectedWallet);
   const hasCredit = currentWallet?.hasCredit;
+
+  // --- CORREÇÃO: Define a carteira padrão ao carregar ou resetar ---
+  const setDefaultWallet = () => {
+      if (wallets && wallets.length > 0) {
+          const defaultWallet = wallets.find(w => w.isDefault);
+          setSelectedWallet(defaultWallet ? defaultWallet.id : wallets[0].id);
+      }
+  };
+
+  // Efeito para definir a carteira inicial quando as carteiras carregam
+  useEffect(() => {
+      if (!initialData && !selectedWallet && wallets.length > 0) {
+          setDefaultWallet();
+      }
+  }, [wallets, initialData, selectedWallet]);
 
   // Sincroniza dados na edição
   useEffect(() => {
@@ -55,16 +72,15 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       setPaymentMethod(initialData.paymentMethod || "debit");
       setDueDay(new Date().getDate());
       setIsInstallment(false); 
-    } else {
-      resetForm(false);
     }
+    // Removi o 'else { resetForm }' daqui para evitar conflito com o efeito de cima
   }, [initialData, categories, assets, wallets]);
 
   // Efeitos colaterais para limpar estados quando o tipo muda
   useEffect(() => { if (type !== 'expense') { setPaymentMethod("debit"); setIsInstallment(false); } }, [type]);
   useEffect(() => { if (paymentMethod === 'debit') setIsInstallment(false); }, [paymentMethod]);
 
-  const resetForm = (fullReset = true) => {
+  const resetForm = () => {
       setAmount("");
       setSelectedId("");
       setDescription("");
@@ -77,10 +93,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       setDueDay(new Date().getDate());
       setIsInstallment(false);
       setInstallmentsCount(2);
-      if (fullReset && wallets && wallets.length > 0) {
-          const defaultWallet = wallets.find(w => w.isDefault);
-          setSelectedWallet(defaultWallet ? defaultWallet.id : wallets[0].id);
-      }
+      setDefaultWallet(); // Garante que volta para a padrão
   };
 
   const handleTypeReset = () => {
@@ -89,34 +102,46 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       setIsFuture(false);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isSubmitting) return;
+
     if (!amount || !selectedId) return;
     if (wallets.length > 0 && !selectedWallet && type !== 'investment') { alert("Selecione uma conta/carteira!"); return; }
     if (isDebt && !selectedPerson) { alert("Selecione a pessoa vinculada."); return; }
 
-    let submitData = {
-      amount, type, description, date, isSubscription, isDebt, isFuture,
-      walletId: selectedWallet, personId: isDebt ? selectedPerson : null,
-      dueDay: isSubscription ? dueDay : null,
-      paymentMethod: type === 'expense' ? paymentMethod : 'debit',
-      installments: isInstallment ? parseInt(installmentsCount) : 1,
-      closingDay: currentWallet?.closingDay || null
-    };
+    setIsSubmitting(true);
 
-    if (type === 'investment') {
-      const assetObj = assets.find(a => a.id === selectedId);
-      submitData.categoryName = assetObj.name;
-      submitData.macro = "Investimentos";
-      submitData.assetId = assetObj.id;
-    } else {
-      const catObj = categories.find(c => c.id === selectedId);
-      submitData.categoryName = catObj.name;
-      submitData.macro = catObj.macro;
-    }
-    onSubmit(submitData);
-    if (!initialData) {
-        resetForm();
+    try {
+        let submitData = {
+          amount, type, description, date, isSubscription, isDebt, isFuture,
+          walletId: selectedWallet, personId: isDebt ? selectedPerson : null,
+          dueDay: isSubscription ? dueDay : null,
+          paymentMethod: type === 'expense' ? paymentMethod : 'debit',
+          installments: isInstallment ? parseInt(installmentsCount) : 1,
+          closingDay: currentWallet?.closingDay || null
+        };
+
+        if (type === 'investment') {
+          const assetObj = assets.find(a => a.id === selectedId);
+          submitData.categoryName = assetObj.name;
+          submitData.macro = "Investimentos";
+          submitData.assetId = assetObj.id;
+        } else {
+          const catObj = categories.find(c => c.id === selectedId);
+          submitData.categoryName = catObj.name;
+          submitData.macro = catObj.macro;
+        }
+        
+        await onSubmit(submitData);
+        
+        if (!initialData) {
+            resetForm();
+        }
+    } catch (error) {
+        console.error("Erro no envio:", error);
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
@@ -199,7 +224,17 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
             />
         )}
 
-        <button type="submit" className={`w-full py-3 rounded-lg text-white font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 ${type === 'expense' ? 'bg-red-600 hover:bg-red-700' : type === 'investment' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-green-600 hover:bg-green-700'}`}>{initialData ? <><Pencil size={18}/> Salvar</> : "Registrar"}</button>
+        <button 
+            type="submit" 
+            disabled={isSubmitting} 
+            className={`w-full py-3 rounded-lg text-white font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed ${type === 'expense' ? 'bg-red-600 hover:bg-red-700' : type === 'investment' ? 'bg-purple-600 hover:bg-purple-700' : 'bg-green-600 hover:bg-green-700'}`}
+        >
+            {isSubmitting ? (
+                <Loader2 className="animate-spin" size={20} /> 
+            ) : (
+                initialData ? <><Pencil size={18}/> Salvar</> : "Registrar"
+            )}
+        </button>
       </form>
     </div>
   );
