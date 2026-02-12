@@ -5,6 +5,8 @@ import { TypeSelector } from "./form/TypeSelector";
 import { CategorySelector } from "./form/CategorySelector";
 import { PaymentOptions } from "./form/PaymentOptions";
 import { AdditionalOptions } from "./form/AdditionalOptions";
+// IMPORTAR AQUI
+import { calculateInstallmentPreview } from "../../utils/formatters"; 
 
 export function TransactionForm({ onSubmit, categories, assets, wallets, initialData, onCancelEdit }) {
   const today = new Date().toLocaleDateString('en-CA');
@@ -30,7 +32,6 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
   const currentWallet = wallets.find(w => w.id === selectedWallet);
   const hasCredit = currentWallet?.hasCredit;
 
-  // --- CORREÇÃO: Define a carteira padrão ao carregar ou resetar ---
   const setDefaultWallet = () => {
       if (wallets && wallets.length > 0) {
           const defaultWallet = wallets.find(w => w.isDefault);
@@ -38,14 +39,12 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       }
   };
 
-  // Efeito para definir a carteira inicial quando as carteiras carregam
   useEffect(() => {
       if (!initialData && !selectedWallet && wallets.length > 0) {
           setDefaultWallet();
       }
   }, [wallets, initialData, selectedWallet]);
 
-  // Sincroniza dados na edição
   useEffect(() => {
     if (initialData) {
       setAmount(initialData.amount);
@@ -73,10 +72,8 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       setDueDay(new Date().getDate());
       setIsInstallment(false); 
     }
-    // Removi o 'else { resetForm }' daqui para evitar conflito com o efeito de cima
   }, [initialData, categories, assets, wallets]);
 
-  // Efeitos colaterais para limpar estados quando o tipo muda
   useEffect(() => { if (type !== 'expense') { setPaymentMethod("debit"); setIsInstallment(false); } }, [type]);
   useEffect(() => { if (paymentMethod === 'debit') setIsInstallment(false); }, [paymentMethod]);
 
@@ -93,7 +90,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       setDueDay(new Date().getDate());
       setIsInstallment(false);
       setInstallmentsCount(2);
-      setDefaultWallet(); // Garante que volta para a padrão
+      setDefaultWallet(); 
   };
 
   const handleTypeReset = () => {
@@ -145,6 +142,8 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
     }
   };
 
+  // --- HELPER LOCAL REMOVIDO DAQUI ---
+
   return (
     <div className={`p-6 rounded-2xl shadow-lg border transition-all ${initialData ? 'bg-blue-900/10 border-blue-500/30' : 'bg-gray-800 border-gray-700'}`}>
       
@@ -168,7 +167,8 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
 
         {isInstallment && amount > 0 && (
             <div className="bg-purple-900/20 border border-purple-500/30 p-2 rounded-lg text-center animate-fade-in">
-                <span className="text-xs text-purple-300">{installmentsCount}x de <strong className="text-white ml-1">R$ {(parseFloat(amount) / installmentsCount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</strong></span>
+                {/* USA O HELPER IMPORTADO AQUI */}
+                <span className="text-xs text-purple-300">{installmentsCount}x de <strong className="text-white ml-1">R$ {calculateInstallmentPreview(amount, installmentsCount)}</strong></span>
             </div>
         )}
 
