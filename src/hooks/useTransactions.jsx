@@ -87,19 +87,10 @@ export function useTransactions() {
     const batch = writeBatch(db);
     const groupId = installments > 1 ? crypto.randomUUID() : null; 
     
-    // --- CORREÇÃO MATEMÁTICA (ALGORITMO DO RESTO) ---
-    // 1. Converte tudo para centavos (inteiro) para evitar erros de ponto flutuante
     const totalCents = Math.round(parseFloat(amount) * 100);
-
-    // 2. Calcula a parcela base (divisão inteira)
-    // Ex: 10000 / 3 = 3333 (R$ 33,33)
     const baseInstallmentCents = Math.floor(totalCents / installments);
-
-    // 3. Calcula o resto (os centavos que sobram)
-    // Ex: 10000 % 3 = 1 (1 centavo sobra)
     const remainderCents = totalCents % installments;
 
-    // Tratamento de data
     let baseDateObj;
     if (date) {
         const [y, m, d] = date.split('-').map(Number);
@@ -111,14 +102,11 @@ export function useTransactions() {
     for (let i = 0; i < installments; i++) {
         const docRef = doc(collection(db, "transactions"));
         
-        // --- APLICAÇÃO DO VALOR CORRETO ---
-        // Se for a última parcela, soma o resto. Se não, usa o valor base.
         let currentInstallmentCents = baseInstallmentCents;
         if (i === installments - 1) {
             currentInstallmentCents += remainderCents;
         }
 
-        // Converte de volta para Reais para salvar no banco (ex: 3333 -> 33.33)
         const finalAmount = currentInstallmentCents / 100;
         
         const currentInstallmentDateObj = addMonths(baseDateObj, i);
@@ -136,7 +124,7 @@ export function useTransactions() {
 
         batch.set(docRef, {
             uid: currentUser.uid,
-            amount: finalAmount, // Agora sempre terá no máximo 2 casas decimais
+            amount: finalAmount,
             category,
             macro,
             type,
@@ -230,6 +218,26 @@ export function useTransactions() {
     } else {
         await deleteDoc(docRef);
     }
+  };
+
+  // --- NOVA FUNÇÃO: Deletar todas as parcelas ---
+  const deleteInstallmentGroup = async (groupId) => {
+    if (!userProfile?.isAuthorized || !groupId) return;
+
+    const q = query(
+        transactionRef, 
+        where("installmentGroupId", "==", groupId),
+        where("uid", "==", currentUser.uid)
+    );
+    
+    const snapshot = await getDocs(q);
+    const batch = writeBatch(db);
+    
+    snapshot.docs.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+    
+    await batch.commit();
   };
 
   const deleteTransactionsByAssetId = async (assetId) => {
@@ -328,6 +336,7 @@ export function useTransactions() {
     addTransaction, 
     addTransfer, 
     deleteTransaction,
+    deleteInstallmentGroup, // <--- Exportada
     deleteTransactionsByAssetId,
     updateTransaction, 
     toggleDebtStatus,

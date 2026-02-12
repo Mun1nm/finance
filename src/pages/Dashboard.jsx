@@ -7,6 +7,7 @@ import { useInvestments } from "../hooks/useInvestments";
 import { useWallets } from "../hooks/useWallets"; 
 import { Summary } from "../components/dashboard/Summary";
 import { ConfirmModal } from "../components/ui/ConfirmModal";
+import { InstallmentDeleteModal } from "../components/ui/InstallmentDeleteModal"; // <--- NOVO IMPORT
 import { Notification } from "../components/ui/Notification";
 import { TransactionForm } from "../components/transactions/TransactionForm";
 import { TransactionList } from "../components/transactions/TransactionList";
@@ -17,7 +18,8 @@ import { FutureTransactionsModal } from "../components/dashboard/FutureTransacti
 import { BudgetModal } from "../components/dashboard/BudgetModal"; 
 
 export default function Dashboard() {
-  const { transactions, addTransaction, deleteTransaction, updateTransaction, toggleDebtStatus, addTransfer, confirmFutureReceipt } = useTransactions();
+  // Puxa nova função deleteInstallmentGroup
+  const { transactions, addTransaction, deleteTransaction, deleteInstallmentGroup, updateTransaction, toggleDebtStatus, addTransfer, confirmFutureReceipt } = useTransactions();
   const { categories, budgets, saveBudget } = useCategories(); 
   const { assets, addContribution, removeContribution } = useInvestments();
   const { wallets, addWallet, setAsDefault, deleteWallet } = useWallets(); 
@@ -28,7 +30,11 @@ export default function Dashboard() {
   const [chartType, setChartType] = useState("expense"); 
   const [editingData, setEditingData] = useState(null);
   const [notification, setNotification] = useState(null);
+  
+  // Modais de Deleção
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null });
+  const [installmentDeleteModal, setInstallmentDeleteModal] = useState({ isOpen: false, id: null, groupId: null }); // <--- NOVO STATE
+
   const [futureModalOpen, setFutureModalOpen] = useState(false); 
   const [budgetModalOpen, setBudgetModalOpen] = useState(false);
 
@@ -102,7 +108,7 @@ export default function Dashboard() {
         }, 0);
 
       let currentInvoice = 0;
-      let allUnpaidInvoices = 0; // <--- NOVO: Total de todas as faturas futuras
+      let allUnpaidInvoices = 0; 
       let currentInvoiceDate = "";
       
       if (w.hasCredit) {
@@ -118,12 +124,10 @@ export default function Dashboard() {
           }
           currentInvoiceDate = `${targetYear}-${String(targetMonth + 1).padStart(2, '0')}`;
 
-          // Fatura do Mês Atual (mantido para exibição na lista)
           currentInvoice = transactions
               .filter(t => t.walletId === w.id && t.paymentMethod === 'credit' && t.invoiceDate === currentInvoiceDate && !t.isPaidCredit)
               .reduce((acc, t) => acc + t.amount, 0);
 
-          // CÁLCULO DE TODAS AS FATURAS EM ABERTO (FUTURAS INCLUÍDAS)
           allUnpaidInvoices = transactions
               .filter(t => t.walletId === w.id && t.paymentMethod === 'credit' && !t.isPaidCredit)
               .reduce((acc, t) => acc + t.amount, 0);
@@ -173,9 +177,25 @@ export default function Dashboard() {
     }
   };
 
-  const handleDelete = async () => {
-    if (deleteModal.id) {
-      const transactionToDelete = transactions.find(t => t.id === deleteModal.id);
+  // --- NOVA LÓGICA DE CLICK NO LIXEIRO ---
+  const handleOpenDelete = (id) => {
+      const transaction = transactions.find(t => t.id === id);
+      
+      // Se for parcela, abre modal especial
+      if (transaction && transaction.installmentGroupId) {
+          setInstallmentDeleteModal({ isOpen: true, id: id, groupId: transaction.installmentGroupId });
+      } else {
+          // Se não, abre modal normal
+          setDeleteModal({ isOpen: true, id });
+      }
+  };
+
+  // Deletar UMA
+  const handleDeleteSingle = async () => {
+    const idToDelete = deleteModal.id || installmentDeleteModal.id;
+    if (idToDelete) {
+      const transactionToDelete = transactions.find(t => t.id === idToDelete);
+      
       if (transactionToDelete && transactionToDelete.type === 'investment' && transactionToDelete.assetId) {
           try {
               await removeContribution(transactionToDelete.assetId, transactionToDelete.amount);
@@ -183,11 +203,24 @@ export default function Dashboard() {
               console.error("Erro ao abater investimento:", error);
           }
       }
-      await deleteTransaction(deleteModal.id);
+      
+      await deleteTransaction(idToDelete);
+      
       setNotification({ msg: "Removido.", type: "success" });
       setDeleteModal({ isOpen: false, id: null });
-      if (editingData?.id === deleteModal.id) setEditingData(null);
+      setInstallmentDeleteModal({ isOpen: false, id: null, groupId: null });
+
+      if (editingData?.id === idToDelete) setEditingData(null);
     }
+  };
+
+  // Deletar TODAS (Parcelas)
+  const handleDeleteAllInstallments = async () => {
+      if (installmentDeleteModal.groupId) {
+          await deleteInstallmentGroup(installmentDeleteModal.groupId);
+          setNotification({ msg: "Todas as parcelas foram removidas.", type: "success" });
+          setInstallmentDeleteModal({ isOpen: false, id: null, groupId: null });
+      }
   };
 
   const handleConfirmReceipt = async (id) => {
@@ -201,7 +234,17 @@ export default function Dashboard() {
   return (
     <div className="pb-24">
       <Notification message={notification?.msg} type={notification?.type} onClose={() => setNotification(null)} />
-      <ConfirmModal isOpen={deleteModal.isOpen} onClose={() => setDeleteModal({ isOpen: false, id: null })} onConfirm={handleDelete} title="Excluir Transação" message="Confirma a exclusão?" />
+      
+      {/* Modal Normal */}
+      <ConfirmModal isOpen={deleteModal.isOpen} onClose={() => setDeleteModal({ isOpen: false, id: null })} onConfirm={handleDeleteSingle} title="Excluir Transação" message="Confirma a exclusão?" />
+
+      {/* NOVO: Modal de Parcelas */}
+      <InstallmentDeleteModal 
+         isOpen={installmentDeleteModal.isOpen}
+         onClose={() => setInstallmentDeleteModal({ isOpen: false, id: null, groupId: null })}
+         onDeleteSingle={handleDeleteSingle}
+         onDeleteAll={handleDeleteAllInstallments}
+      />
 
       <MonthNavigator 
         currentDate={currentDate} 
@@ -256,7 +299,7 @@ export default function Dashboard() {
                 transactions={filteredTransactions.filter(t => !t.isFuture)} 
                 wallets={wallets} 
                 onEdit={setEditingData} 
-                onDelete={(id) => setDeleteModal({ isOpen: true, id })} 
+                onDelete={handleOpenDelete} // <--- Alterado para a nova função
                 onToggleDebt={toggleDebtStatus} 
                 editingId={editingData?.id} 
             />
