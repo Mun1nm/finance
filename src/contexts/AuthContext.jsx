@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { auth, db } from "../services/firebase";
 import { 
   onAuthStateChanged, 
-  signInWithPopup, 
+  signInWithRedirect, // <--- MUDANÇA 1: Importar Redirect em vez de Popup
   GoogleAuthProvider, 
   signOut 
 } from "firebase/auth";
@@ -16,10 +16,9 @@ export function useAuth() {
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
-  const [userProfile, setUserProfile] = useState(null); // Guarda dados do banco (isAuthorized)
+  const [userProfile, setUserProfile] = useState(null); 
   const [loading, setLoading] = useState(true);
 
-  // Verifica ou cria o perfil no Firestore
   const checkUserProfile = async (user) => {
     try {
       const userRef = doc(db, "users", user.uid);
@@ -28,12 +27,11 @@ export function AuthProvider({ children }) {
       if (userSnap.exists()) {
         setUserProfile(userSnap.data());
       } else {
-        // Primeiro acesso: Cria registro BLOQUEADO
         const newProfile = {
           uid: user.uid,
           email: user.email,
           displayName: user.displayName,
-          isAuthorized: false, // Começa como false
+          isAuthorized: false, 
           createdAt: serverTimestamp()
         };
         
@@ -45,9 +43,11 @@ export function AuthProvider({ children }) {
     }
   };
 
+  // --- MUDANÇA 2: Usar Redirect ---
+  // Isso resolve o problema do login não abrir no iPhone (PWA)
   const login = async () => {
     const provider = new GoogleAuthProvider();
-    await signInWithPopup(auth, provider);
+    await signInWithRedirect(auth, provider);
   };
 
   const logout = () => {
@@ -58,12 +58,9 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        await user.getIdToken(true);
-
-        const tokenResult = await user.getIdTokenResult();
-
+        // Se precisar forçar refresh do token: await user.getIdToken(true);
         setCurrentUser(user);
-        await checkUserProfile(user); // Busca permissões antes de liberar o app
+        await checkUserProfile(user); 
       } else {
         setCurrentUser(null);
         setUserProfile(null);
@@ -76,7 +73,7 @@ export function AuthProvider({ children }) {
 
   const value = {
     currentUser,
-    userProfile, // Exposto para o app checar userProfile.isAuthorized
+    userProfile, 
     loading,
     login,
     logout
