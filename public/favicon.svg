@@ -1,7 +1,7 @@
 <svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
 <g clip-path="url(#clip0_1_2)">
 <rect width="180" height="180" fill="white" fill-opacity="0.3"/>
-<rect width="180" height="180" rx="50" fill="#2149CD"/>
+<rect width="180" height="180" rx="40" fill="#2149CD"/>
 <g filter="url(#filter0_d_1_2)">
 <rect x="101" y="81" width="46" height="62" rx="7" stroke="#DDDDDD" stroke-width="10" shape-rendering="crispEdges"/>
 </g>
