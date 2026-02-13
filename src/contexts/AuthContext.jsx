@@ -3,11 +3,10 @@ import { auth, db } from "../services/firebase";
 import { 
   onAuthStateChanged, 
   signInWithRedirect, 
-  getRedirectResult, // <--- O CARA QUE RESOLVE O RETORNO
   GoogleAuthProvider, 
   signOut,
   setPersistence, 
-  browserLocalPersistence // <--- OBRIGA O IPHONE A SALVAR
+  browserLocalPersistence 
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
@@ -50,9 +49,9 @@ export function AuthProvider({ children }) {
   const login = async () => {
     try {
         const provider = new GoogleAuthProvider();
-        // 1. Força persistência LOCAL (crucial para PWA no iOS)
+        // Força a persistência LOCAL antes de redirecionar
+        // Isso é CRUCIAL para o iPhone não "esquecer" o login na volta
         await setPersistence(auth, browserLocalPersistence);
-        // 2. Redireciona
         await signInWithRedirect(auth, provider);
     } catch (error) {
         console.error("Erro ao iniciar login:", error);
@@ -65,39 +64,39 @@ export function AuthProvider({ children }) {
   };
 
   useEffect(() => {
-    let unsubscribe;
-
+    // Definimos a persistência também no carregamento inicial por segurança
     const initAuth = async () => {
-        // A: Tenta capturar o usuário que acabou de voltar do Google
         try {
-            const redirectResult = await getRedirectResult(auth);
-            if (redirectResult && redirectResult.user) {
-                // Se pegou o usuário no redirecionamento, já salva
-                setCurrentUser(redirectResult.user);
-                await checkUserProfile(redirectResult.user);
-            }
-        } catch (error) {
-            console.error("Erro no retorno do login:", error);
+            await setPersistence(auth, browserLocalPersistence);
+        } catch (e) {
+            console.error("Erro ao definir persistência:", e);
         }
 
-        // B: Ouve mudanças de estado normais (ex: refresh de página, token expirado)
-        unsubscribe = onAuthStateChanged(auth, async (user) => {
+        const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
+                // Usuário detectado (mesmo voltando do redirect)
                 setCurrentUser(user);
-                // Só busca o perfil se ele ainda não estiver carregado (pra evitar chamadas duplas)
                 await checkUserProfile(user); 
             } else {
+                // Ninguém logado
                 setCurrentUser(null);
                 setUserProfile(null);
             }
+            // Só libera o app depois de checar tudo
             setLoading(false);
         });
+
+        return unsubscribe;
     };
 
-    initAuth();
+    // Executa e guarda a função de limpeza
+    let unsubscribeFunc;
+    initAuth().then(unsub => {
+        unsubscribeFunc = unsub;
+    });
 
     return () => {
-        if (unsubscribe) unsubscribe();
+        if (unsubscribeFunc) unsubscribeFunc();
     };
   }, []);
 
