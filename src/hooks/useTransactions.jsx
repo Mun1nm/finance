@@ -51,12 +51,11 @@ export function useTransactions() {
     return unsubscribe;
   }, [currentUser, userProfile]);
 
-  // --- CORREÇÃO AQUI: Incluindo APENAS Segundos ---
+  // Mantendo a precisão de segundos para ordenação correta
   const parseDate = (dateString) => {
     if (!dateString) return serverTimestamp();
     const now = new Date();
     const [year, month, day] = dateString.split('-').map(Number);
-    // Adicionei now.getSeconds() ao final
     return new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds());
   };
 
@@ -134,7 +133,7 @@ export function useTransactions() {
             isDebt: !!isDebt,
             debtPaid: false,
             isFuture: !!isFuture,
-            date: parseDate(currentInstallmentDateString), // Usa a nova função
+            date: parseDate(currentInstallmentDateString),
             walletId: walletId || null,
             subscriptionId: subscriptionId || null,
             assetId: assetId || null,
@@ -157,7 +156,7 @@ export function useTransactions() {
     
     const batch = writeBatch(db);
     const parsedAmount = parseFloat(amount);
-    const transactionDate = parseDate(date); // Usa a nova função
+    const transactionDate = parseDate(date);
 
     const docRef1 = doc(collection(db, "transactions"));
     batch.set(docRef1, {
@@ -196,6 +195,7 @@ export function useTransactions() {
     await batch.commit();
   };
 
+  // --- DELETE ATUALIZADO (Limpeza de Reembolsos) ---
   const deleteTransaction = async (id) => {
     if (!userProfile?.isAuthorized) return;
     
@@ -205,99 +205,123 @@ export function useTransactions() {
     if (!docSnap.exists()) return;
 
     const data = docSnap.data();
+    const batch = writeBatch(db);
 
+    // 1. Se for Pagamento de Fatura, reverte as compras
     if (data.isInvoicePayment && data.relatedTransactionIds && data.relatedTransactionIds.length > 0) {
-        const batch = writeBatch(db);
-        
         data.relatedTransactionIds.forEach(originalTxId => {
             const originalRef = doc(db, "transactions", originalTxId);
             batch.update(originalRef, { isPaidCredit: false });
         });
-
-        batch.delete(docRef);
-
-        await batch.commit();
-    } else {
-        await deleteDoc(docRef);
     }
+
+    // 2. Se for uma Dívida que tinha um Reembolso atrelado, apaga o reembolso também
+    if (data.reimbursementId) {
+        const reimbursementRef = doc(db, "transactions", data.reimbursementId);
+        batch.delete(reimbursementRef);
+    }
+    
+    // 3. Se for o próprio Reembolso, avisa a dívida original que ela não está mais paga
+    if (data.relatedDebtId) {
+        const debtRef = doc(db, "transactions", data.relatedDebtId);
+        batch.update(debtRef, { debtPaid: false, reimbursementId: null });
+    }
+
+    batch.delete(docRef);
+    await batch.commit();
   };
 
   const deleteInstallmentGroup = async (groupId) => {
     if (!userProfile?.isAuthorized || !groupId) return;
-
-    const q = query(
-        transactionRef, 
-        where("installmentGroupId", "==", groupId),
-        where("uid", "==", currentUser.uid)
-    );
-    
+    const q = query(transactionRef, where("installmentGroupId", "==", groupId), where("uid", "==", currentUser.uid));
     const snapshot = await getDocs(q);
     const batch = writeBatch(db);
-    
-    snapshot.docs.forEach((doc) => {
-      batch.delete(doc.ref);
-    });
-    
+    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
     await batch.commit();
   };
 
   const deleteTransactionsByAssetId = async (assetId) => {
     if (!userProfile?.isAuthorized) return;
-    
-    const q = query(
-        transactionRef, 
-        where("assetId", "==", assetId),
-        where("uid", "==", currentUser.uid)
-    );
-    
+    const q = query(transactionRef, where("assetId", "==", assetId), where("uid", "==", currentUser.uid));
     const snapshot = await getDocs(q);
     const batch = writeBatch(db);
-    snapshot.docs.forEach((doc) => {
-      batch.delete(doc.ref);
-    });
-    
+    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
     await batch.commit();
   };
 
   const updateTransaction = async (id, amount, category, macro, type, isDebt, description = "", date = null, walletId = null, isFuture = false, paymentMethod = 'debit', invoiceDate = null) => {
     if (!userProfile?.isAuthorized) return;
     const docRef = doc(db, "transactions", id);
-    
     const updateData = {
-      amount: parseFloat(amount),
-      category,
-      macro,
-      type,
-      isDebt: !!isDebt,
-      isFuture: !!isFuture,
-      description,
-      walletId: walletId || null,
-      paymentMethod,
-      invoiceDate
+      amount: parseFloat(amount), category, macro, type, isDebt: !!isDebt, isFuture: !!isFuture,
+      description, walletId: walletId || null, paymentMethod, invoiceDate
     };
-
-    if (date) {
-      updateData.date = parseDate(date);
-    }
-
+    if (date) updateData.date = parseDate(date);
     await updateDoc(docRef, updateData);
   };
 
+  // --- NOVA LÓGICA: Alternar status com Geração de Receita ---
   const toggleDebtStatus = async (id, currentStatus) => {
     if (!userProfile?.isAuthorized) return;
-    const docRef = doc(db, "transactions", id);
-    await updateDoc(docRef, {
-      debtPaid: !currentStatus
-    });
+    
+    const debtRef = doc(db, "transactions", id);
+    const debtSnap = await getDoc(debtRef);
+
+    if (!debtSnap.exists()) return;
+    const debtData = debtSnap.data();
+
+    // Cenário 1: Marcar como PAGO (Criar Transação de Entrada)
+    if (!currentStatus) {
+        const batch = writeBatch(db);
+        const reimbursementRef = doc(collection(db, "transactions"));
+        
+        const reimbursementData = {
+            uid: currentUser.uid,
+            amount: debtData.amount, // Valor recebido
+            category: "Reembolso",
+            macro: "Receitas",
+            type: "income", // Dinheiro entrando na conta
+            description: `Reembolso: ${debtData.description || 'Dívida'}`,
+            isDebt: false,
+            debtPaid: false,
+            isFuture: false,
+            date: serverTimestamp(), // Recebido hoje
+            walletId: debtData.walletId, // Entra na mesma carteira usada na despesa
+            paymentMethod: 'debit',
+            relatedDebtId: id // Link para saber de onde veio
+        };
+
+        batch.set(reimbursementRef, reimbursementData);
+        batch.update(debtRef, { 
+            debtPaid: true, 
+            reimbursementId: reimbursementRef.id 
+        });
+
+        await batch.commit();
+    } 
+    // Cenário 2: Desmarcar (Apagar a Entrada)
+    else {
+        const batch = writeBatch(db);
+        
+        // Se existir um reembolso atrelado, apaga ele
+        if (debtData.reimbursementId) {
+            const reimbursementRef = doc(db, "transactions", debtData.reimbursementId);
+            batch.delete(reimbursementRef);
+        }
+
+        batch.update(debtRef, { 
+            debtPaid: false, 
+            reimbursementId: null 
+        });
+
+        await batch.commit();
+    }
   };
 
   const confirmFutureReceipt = async (id) => {
     if (!userProfile?.isAuthorized) return;
     const docRef = doc(db, "transactions", id);
-    await updateDoc(docRef, {
-      isFuture: false,
-      date: new Date()
-    });
+    await updateDoc(docRef, { isFuture: false, date: new Date() });
   };
 
   const payInvoice = async (walletId, amount, invoiceDate, transactionIds) => {
