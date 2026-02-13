@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { auth, db } from "../services/firebase";
 import { 
   onAuthStateChanged, 
-  signInWithRedirect, 
+  signInWithPopup, // <--- MUDANÇA PRINCIPAL: Usar Popup
   GoogleAuthProvider, 
   signOut,
   setPersistence, 
@@ -49,12 +49,17 @@ export function AuthProvider({ children }) {
   const login = async () => {
     try {
         const provider = new GoogleAuthProvider();
-        // Força a persistência LOCAL antes de redirecionar
-        // Isso é CRUCIAL para o iPhone não "esquecer" o login na volta
+        
+        // Garante persistência LOCAL
         await setPersistence(auth, browserLocalPersistence);
-        await signInWithRedirect(auth, provider);
+        
+        // MUDANÇA AQUI: Popup é imune a bloqueios de redirect e 404 da Vercel
+        await signInWithPopup(auth, provider);
+        
+        // O onAuthStateChanged vai capturar o sucesso automaticamente
     } catch (error) {
         console.error("Erro ao iniciar login:", error);
+        alert("Erro ao logar: " + error.message); // Alerta visual para debug
     }
   };
 
@@ -64,17 +69,11 @@ export function AuthProvider({ children }) {
   };
 
   useEffect(() => {
-    // Definimos a persistência também no carregamento inicial por segurança
-    const initAuth = async () => {
+    // Escuta mudanças na autenticação
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
         try {
-            await setPersistence(auth, browserLocalPersistence);
-        } catch (e) {
-            console.error("Erro ao definir persistência:", e);
-        }
-
-        const unsubscribe = onAuthStateChanged(auth, async (user) => {
             if (user) {
-                // Usuário detectado (mesmo voltando do redirect)
+                // Usuário logado
                 setCurrentUser(user);
                 await checkUserProfile(user); 
             } else {
@@ -82,22 +81,16 @@ export function AuthProvider({ children }) {
                 setCurrentUser(null);
                 setUserProfile(null);
             }
-            // Só libera o app depois de checar tudo
+        } catch (error) {
+            console.error("Erro no listener de auth:", error);
+        } finally {
+            // Remove o loading independente do resultado
             setLoading(false);
-        });
-
-        return unsubscribe;
-    };
-
-    // Executa e guarda a função de limpeza
-    let unsubscribeFunc;
-    initAuth().then(unsub => {
-        unsubscribeFunc = unsub;
+        }
     });
 
-    return () => {
-        if (unsubscribeFunc) unsubscribeFunc();
-    };
+    // Limpa o listener ao desmontar
+    return () => unsubscribe();
   }, []);
 
   const value = {
