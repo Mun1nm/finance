@@ -3,11 +3,11 @@ import { auth, db } from "../services/firebase";
 import { 
   onAuthStateChanged, 
   signInWithRedirect, 
-  getRedirectResult, // <--- IMPORTANTE: Função para capturar o retorno do login
+  getRedirectResult, // <--- O CARA QUE RESOLVE O RETORNO
   GoogleAuthProvider, 
   signOut,
-  setPersistence, // <--- Para forçar persistência local
-  browserLocalPersistence
+  setPersistence, 
+  browserLocalPersistence // <--- OBRIGA O IPHONE A SALVAR
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
@@ -22,7 +22,9 @@ export function AuthProvider({ children }) {
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Função auxiliar para buscar/criar perfil no banco
   const checkUserProfile = async (user) => {
+    if (!user) return;
     try {
       const userRef = doc(db, "users", user.uid);
       const userSnap = await getDoc(userRef);
@@ -37,7 +39,6 @@ export function AuthProvider({ children }) {
           isAuthorized: false,
           createdAt: serverTimestamp()
         };
-        
         await setDoc(userRef, newProfile);
         setUserProfile(newProfile);
       }
@@ -47,11 +48,15 @@ export function AuthProvider({ children }) {
   };
 
   const login = async () => {
-    const provider = new GoogleAuthProvider();
-    // Força a persistência LOCAL antes de redirecionar
-    // Isso ajuda o PWA a não "esquecer" a sessão no meio do caminho
-    await setPersistence(auth, browserLocalPersistence);
-    await signInWithRedirect(auth, provider);
+    try {
+        const provider = new GoogleAuthProvider();
+        // 1. Força persistência LOCAL (crucial para PWA no iOS)
+        await setPersistence(auth, browserLocalPersistence);
+        // 2. Redireciona
+        await signInWithRedirect(auth, provider);
+    } catch (error) {
+        console.error("Erro ao iniciar login:", error);
+    }
   };
 
   const logout = () => {
@@ -60,33 +65,40 @@ export function AuthProvider({ children }) {
   };
 
   useEffect(() => {
-    // 1. Tenta capturar o resultado do redirecionamento assim que o app monta
-    getRedirectResult(auth)
-      .then(async (result) => {
-        if (result && result.user) {
-          // Se voltou do Google com sucesso, já carrega o perfil
-          await checkUserProfile(result.user);
+    let unsubscribe;
+
+    const initAuth = async () => {
+        // A: Tenta capturar o usuário que acabou de voltar do Google
+        try {
+            const redirectResult = await getRedirectResult(auth);
+            if (redirectResult && redirectResult.user) {
+                // Se pegou o usuário no redirecionamento, já salva
+                setCurrentUser(redirectResult.user);
+                await checkUserProfile(redirectResult.user);
+            }
+        } catch (error) {
+            console.error("Erro no retorno do login:", error);
         }
-      })
-      .catch((error) => {
-        console.error("Erro no redirecionamento PWA:", error);
-      });
 
-    // 2. Ouve mudanças de estado (para logins normais ou recarregamentos)
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        setCurrentUser(user);
-        // Só busca o perfil se ainda não tivermos (evita duplicidade com o getRedirectResult)
-        // Mas por segurança, chamar aqui garante que funcione sempre
-        await checkUserProfile(user); 
-      } else {
-        setCurrentUser(null);
-        setUserProfile(null);
-      }
-      setLoading(false);
-    });
+        // B: Ouve mudanças de estado normais (ex: refresh de página, token expirado)
+        unsubscribe = onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                setCurrentUser(user);
+                // Só busca o perfil se ele ainda não estiver carregado (pra evitar chamadas duplas)
+                await checkUserProfile(user); 
+            } else {
+                setCurrentUser(null);
+                setUserProfile(null);
+            }
+            setLoading(false);
+        });
+    };
 
-    return unsubscribe;
+    initAuth();
+
+    return () => {
+        if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   const value = {
