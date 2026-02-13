@@ -51,7 +51,6 @@ export function useTransactions() {
     return unsubscribe;
   }, [currentUser, userProfile]);
 
-  // Mantendo a precisão de segundos para ordenação correta
   const parseDate = (dateString) => {
     if (!dateString) return serverTimestamp();
     const now = new Date();
@@ -195,7 +194,6 @@ export function useTransactions() {
     await batch.commit();
   };
 
-  // --- DELETE ATUALIZADO (Limpeza de Reembolsos) ---
   const deleteTransaction = async (id) => {
     if (!userProfile?.isAuthorized) return;
     
@@ -207,7 +205,6 @@ export function useTransactions() {
     const data = docSnap.data();
     const batch = writeBatch(db);
 
-    // 1. Se for Pagamento de Fatura, reverte as compras
     if (data.isInvoicePayment && data.relatedTransactionIds && data.relatedTransactionIds.length > 0) {
         data.relatedTransactionIds.forEach(originalTxId => {
             const originalRef = doc(db, "transactions", originalTxId);
@@ -215,13 +212,11 @@ export function useTransactions() {
         });
     }
 
-    // 2. Se for uma Dívida que tinha um Reembolso atrelado, apaga o reembolso também
     if (data.reimbursementId) {
         const reimbursementRef = doc(db, "transactions", data.reimbursementId);
         batch.delete(reimbursementRef);
     }
     
-    // 3. Se for o próprio Reembolso, avisa a dívida original que ela não está mais paga
     if (data.relatedDebtId) {
         const debtRef = doc(db, "transactions", data.relatedDebtId);
         batch.update(debtRef, { debtPaid: false, reimbursementId: null });
@@ -260,7 +255,7 @@ export function useTransactions() {
     await updateDoc(docRef, updateData);
   };
 
-  // --- NOVA LÓGICA: Alternar status com Geração de Receita ---
+  // --- LÓGICA CORRIGIDA E INVERTIDA ---
   const toggleDebtStatus = async (id, currentStatus) => {
     if (!userProfile?.isAuthorized) return;
     
@@ -270,25 +265,32 @@ export function useTransactions() {
     if (!debtSnap.exists()) return;
     const debtData = debtSnap.data();
 
-    // Cenário 1: Marcar como PAGO (Criar Transação de Entrada)
+    // Cenário 1: Marcar como PAGO
     if (!currentStatus) {
         const batch = writeBatch(db);
         const reimbursementRef = doc(collection(db, "transactions"));
         
+        // Verifica se a dívida original era uma SAÍDA (Eu emprestei) ou ENTRADA (Eu peguei)
+        const isLending = debtData.type === 'expense'; // Eu emprestei
+        
         const reimbursementData = {
             uid: currentUser.uid,
-            amount: debtData.amount, // Valor recebido
-            category: "Reembolso",
-            macro: "Receitas",
-            type: "income", // Dinheiro entrando na conta
-            description: `Reembolso: ${debtData.description || 'Dívida'}`,
+            amount: debtData.amount,
+            
+            // SE EU EMPRESTEI (Expense) -> Gero REEMBOLSO (Income/Receita)
+            // SE EU PEGUEI (Income) -> Gero PAGAMENTO (Expense/Despesa)
+            category: isLending ? "Reembolso" : "Pagamento de Dívida",
+            macro: isLending ? "Receitas" : "Despesas",
+            type: isLending ? "income" : "expense", 
+            
+            description: `${isLending ? 'Reembolso' : 'Pagamento'}: ${debtData.description || 'Dívida'}`,
             isDebt: false,
             debtPaid: false,
             isFuture: false,
-            date: serverTimestamp(), // Recebido hoje
-            walletId: debtData.walletId, // Entra na mesma carteira usada na despesa
-            paymentMethod: 'debit',
-            relatedDebtId: id // Link para saber de onde veio
+            date: serverTimestamp(), // Data de hoje (quando acertei)
+            walletId: debtData.walletId, 
+            paymentMethod: 'debit', 
+            relatedDebtId: id 
         };
 
         batch.set(reimbursementRef, reimbursementData);
@@ -299,21 +301,17 @@ export function useTransactions() {
 
         await batch.commit();
     } 
-    // Cenário 2: Desmarcar (Apagar a Entrada)
+    // Cenário 2: Desmarcar (Apagar o acerto de contas)
     else {
         const batch = writeBatch(db);
-        
-        // Se existir um reembolso atrelado, apaga ele
         if (debtData.reimbursementId) {
             const reimbursementRef = doc(db, "transactions", debtData.reimbursementId);
             batch.delete(reimbursementRef);
         }
-
         batch.update(debtRef, { 
             debtPaid: false, 
             reimbursementId: null 
         });
-
         await batch.commit();
     }
   };

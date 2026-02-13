@@ -4,20 +4,28 @@ export function Summary({ transactions, assets = [], totalBalance, budgets = [],
 
   const income = transactions
     .filter((t) => t.type === "income")
+    // Ignora entradas que são dívidas (empréstimos que peguei) para não inflar a receita
+    .filter((t) => !t.isDebt) 
     .reduce((acc, t) => acc + t.amount, 0);
 
   const expense = transactions
     .filter((t) => t.type === "expense")
-    .filter((t) => !(t.isDebt && t.debtPaid))
     .reduce((acc, t) => acc + t.amount, 0);
 
   const investmentsFlow = transactions
     .filter((t) => t.type === "investment")
     .reduce((acc, t) => acc + t.amount, 0);
 
-  const pendingDebt = transactions
+  // --- CORREÇÃO AQUI: Cálculo Líquido (Receber - Pagar) ---
+  const netPendingDebt = transactions
     .filter((t) => t.isDebt && !t.debtPaid)
-    .reduce((acc, t) => acc + t.amount, 0);
+    .reduce((acc, t) => {
+        // Se for Expense (Eu paguei) -> Soma (Receber)
+        if (t.type === 'expense') return acc + t.amount;
+        // Se for Income (Peguei emprestado) -> Subtrai (Pagar)
+        if (t.type === 'income') return acc - t.amount;
+        return acc;
+    }, 0);
 
   const totalNetWorth = assets.reduce((acc, a) => acc + (a.currentValue || 0), 0);
 
@@ -25,7 +33,7 @@ export function Summary({ transactions, assets = [], totalBalance, budgets = [],
   const totalBudgetLimit = budgets.reduce((acc, b) => acc + b.limit, 0);
   
   const relevantExpense = transactions
-    .filter((t) => t.type === "expense" && !(t.isDebt && t.debtPaid))
+    .filter((t) => t.type === "expense")
     .filter((t) => budgets.some(b => b.macro === t.macro))
     .reduce((acc, t) => acc + t.amount, 0);
 
@@ -44,15 +52,13 @@ export function Summary({ transactions, assets = [], totalBalance, budgets = [],
         </div>
       </div>
 
-      {/* 2. SAÍDAS (CORRIGIDO: Estrutura Híbrida Mobile/Desktop) */}
+      {/* 2. SAÍDAS */}
       <div 
         onClick={totalBudgetLimit > 0 ? onOpenBudgetModal : undefined}
         className={`bg-gray-800 p-4 rounded-xl border border-gray-700 flex flex-col justify-center relative overflow-hidden ${totalBudgetLimit > 0 ? 'cursor-pointer hover:border-red-500/50 transition-colors' : ''} lg:items-center`}
       >
-        {/* Wrapper: w-full no mobile (para separar título/valor), w-auto no desktop (para linha compacta) */}
         <div className="z-10 w-full lg:w-auto flex flex-col lg:items-center">
             
-            {/* Header: Row no Mobile, Col no Desktop */}
             <div className="flex items-center justify-between w-full lg:flex-col lg:justify-center lg:gap-1">
                 <span className="text-gray-400 text-xs uppercase font-bold flex items-center gap-1">
                     Saídas (Mês)
@@ -65,7 +71,6 @@ export function Summary({ transactions, assets = [], totalBalance, budgets = [],
                 </div>
             </div>
 
-            {/* Linha do Orçamento */}
             {totalBudgetLimit > 0 && (
                 <div className="mt-1 lg:mt-2 pt-2 border-t border-red-500/30 w-full flex flex-col items-end lg:items-center">
                     <span className={`text-[10px] uppercase ${isOverBudget ? 'text-red-500 font-bold' : 'text-gray-400'}`}>
@@ -79,11 +84,10 @@ export function Summary({ transactions, assets = [], totalBalance, budgets = [],
         </div>
       </div>
 
-      {/* 3. INVESTIMENTOS (Mesma correção aplicada) */}
+      {/* 3. INVESTIMENTOS */}
       <div className="bg-gray-800 p-4 rounded-xl border border-gray-700 flex flex-col justify-center relative overflow-hidden lg:items-center">
         
         <div className="z-10 w-full lg:w-auto flex flex-col lg:items-center">
-            {/* Header */}
             <div className="flex items-center justify-between w-full lg:flex-col lg:justify-center lg:gap-1">
                 <span className="text-purple-400 text-xs uppercase font-bold">Aportes (Mês)</span>
                 
@@ -93,7 +97,6 @@ export function Summary({ transactions, assets = [], totalBalance, budgets = [],
                 </div>
             </div>
             
-            {/* Linha Patrimônio */}
             <div className="mt-1 lg:mt-2 pt-2 border-t border-purple-500/30 w-full flex flex-col items-end lg:items-center">
                 <span className="text-[10px] text-gray-400 uppercase">Patrimônio Total</span>
                 <span className="text-sm font-bold text-white">R$ {totalNetWorth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
@@ -111,9 +114,15 @@ export function Summary({ transactions, assets = [], totalBalance, budgets = [],
           <span className="font-bold text-xl lg:text-2xl">R$ {totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
         </div>
         
-        {pendingDebt > 0 && (
-          <span className="text-[10px] text-orange-400 mt-1 bg-orange-900/20 px-2 py-0.5 rounded-full border border-orange-900/50 flex items-center gap-1">
-             + R$ {pendingDebt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} a receber
+        {/* CORREÇÃO VISUAL: Exibe "A pagar" ou "A receber" baseado no saldo líquido */}
+        {netPendingDebt !== 0 && (
+          <span className={`text-[10px] mt-1 px-2 py-0.5 rounded-full border flex items-center gap-1 font-medium ${
+             netPendingDebt > 0 
+             ? "text-green-400 bg-green-900/20 border-green-900/50" 
+             : "text-red-400 bg-red-900/20 border-red-900/50"
+          }`}>
+             {netPendingDebt > 0 ? "A receber: " : "A pagar: "} 
+             R$ {Math.abs(netPendingDebt).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
           </span>
         )}
       </div>
