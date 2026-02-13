@@ -1,7 +1,7 @@
-import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../contexts/AuthContext";
 import { ConfirmModal } from "../../components/ui/ConfirmModal"; 
+import { useState } from "react"; // Adicionei useState que faltava no import anterior
 import { 
   LogOut, Settings, TrendingUp, RefreshCw, LayoutDashboard, Users 
 } from "lucide-react";
@@ -28,7 +28,12 @@ export function Navbar() {
 
   return (
     <>
-        <header className="px-4 py-3 flex justify-between items-center bg-gray-800 border-b border-gray-700 sticky top-0 z-50 shadow-md select-none">
+        {/* CORREÇÃO PWA IPHONE (NOTCH):
+            Substituí 'py-3' por 'pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))]'
+            Isso empurra o conteúdo para baixo da câmera, mas mantém o fundo colorido atrás dela.
+        */}
+        <header className="px-4 pb-3 pt-[calc(0.75rem+env(safe-area-inset-top))] flex justify-between items-center bg-gray-800 border-b border-gray-700 sticky top-0 z-50 shadow-md select-none transition-all">
+        
         {/* Logo / Home */}
         <button onClick={() => navigate("/")} className="flex items-center gap-2 group">
             <div className="bg-blue-600 p-1.5 rounded-lg group-hover:bg-blue-500 transition-colors shadow-lg shadow-blue-900/20">
@@ -90,15 +95,15 @@ export function Navbar() {
         </button>
         </header>
 
-        {/* AJUSTE 3: Modal de Confirmação customizado para Logout */}
+        {/* Modal de Confirmação */}
         <ConfirmModal 
             isOpen={isLogoutModalOpen}
             onClose={() => setIsLogoutModalOpen(false)}
             onConfirm={handleConfirmLogout}
             title="Sair do Sistema"
             message="Tem certeza que deseja desconectar sua conta?"
-            confirmText="Sim, sair" // Texto personalizado
-            confirmButtonClass="bg-blue-600 hover:bg-blue-700 shadow-blue-900/20" // Cor azul
+            confirmText="Sim, sair"
+            confirmButtonClass="bg-blue-600 hover:bg-blue-700 shadow-blue-900/20"
         />
     </>
   );
