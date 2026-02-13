@@ -7,7 +7,7 @@ import { useInvestments } from "../hooks/useInvestments";
 import { useWallets } from "../hooks/useWallets"; 
 import { Summary } from "../components/dashboard/Summary";
 import { ConfirmModal } from "../components/ui/ConfirmModal";
-import { InstallmentDeleteModal } from "../components/ui/InstallmentDeleteModal"; // <--- NOVO IMPORT
+import { InstallmentDeleteModal } from "../components/ui/InstallmentDeleteModal"; 
 import { Notification } from "../components/ui/Notification";
 import { TransactionForm } from "../components/transactions/TransactionForm";
 import { TransactionList } from "../components/transactions/TransactionList";
@@ -18,7 +18,6 @@ import { FutureTransactionsModal } from "../components/dashboard/FutureTransacti
 import { BudgetModal } from "../components/dashboard/BudgetModal"; 
 
 export default function Dashboard() {
-  // Puxa nova função deleteInstallmentGroup
   const { transactions, addTransaction, deleteTransaction, deleteInstallmentGroup, updateTransaction, toggleDebtStatus, addTransfer, confirmFutureReceipt } = useTransactions();
   const { categories, budgets, saveBudget } = useCategories(); 
   const { assets, addContribution, removeContribution } = useInvestments();
@@ -31,9 +30,8 @@ export default function Dashboard() {
   const [editingData, setEditingData] = useState(null);
   const [notification, setNotification] = useState(null);
   
-  // Modais de Deleção
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null });
-  const [installmentDeleteModal, setInstallmentDeleteModal] = useState({ isOpen: false, id: null, groupId: null }); // <--- NOVO STATE
+  const [installmentDeleteModal, setInstallmentDeleteModal] = useState({ isOpen: false, id: null, groupId: null });
 
   const [futureModalOpen, setFutureModalOpen] = useState(false); 
   const [budgetModalOpen, setBudgetModalOpen] = useState(false);
@@ -50,7 +48,6 @@ export default function Dashboard() {
     }, wallets);
   }, [wallets]);
 
-  // --- OTIMIZAÇÃO DE PERFORMANCE (useMemo) ---
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
       if (!t.date) return false;
@@ -63,9 +60,15 @@ export default function Dashboard() {
   const monthlyBalance = useMemo(() => {
     return filteredTransactions.reduce((acc, t) => {
       if (t.isFuture || t.isTransfer) return acc;
-      if (t.type === 'income') return acc + t.amount;
+      
+      if (t.type === 'income') {
+          // CORREÇÃO: Se for Entrada e for Dívida (Peguei emprestado), IGNORAR no saldo.
+          if (t.isDebt) return acc;
+          return acc + t.amount;
+      }
+      
       if (t.type === 'expense') {
-          if (t.isInvoicePayment || (t.isDebt && t.debtPaid)) return acc;
+          if (t.isInvoicePayment) return acc;
           return acc - t.amount;
       }
       if (t.type === 'investment') return acc - t.amount;
@@ -77,9 +80,14 @@ export default function Dashboard() {
     return transactions.reduce((acc, t) => {
       if (t.isFuture || t.isTransfer) return acc; 
       if (t.date && t.date.seconds * 1000 > new Date().getTime()) return acc;
-      if (t.type === 'income') return acc + t.amount;
+      
+      if (t.type === 'income') {
+          // CORREÇÃO: Ignorar "Empréstimos Recebidos" (Dívidas) no saldo total também
+          if (t.isDebt) return acc;
+          return acc + t.amount;
+      }
+      
       if (t.type === 'expense') {
-        if (t.isDebt && t.debtPaid) return acc;
         if (t.paymentMethod === 'credit') return acc;
         return acc - t.amount;
       } 
@@ -99,7 +107,11 @@ export default function Dashboard() {
       const balance = transactions
         .filter(t => t.walletId === w.id && !t.isFuture && t.date && t.date.seconds * 1000 <= new Date().getTime())
         .reduce((acc, t) => {
-           if (t.type === 'income') return acc + t.amount;
+           if (t.type === 'income') {
+               // CORREÇÃO: Carteira ignora entrada de empréstimo
+               if (t.isDebt) return acc;
+               return acc + t.amount;
+           }
            if (t.type === 'expense' || t.type === 'investment') {
                if (t.paymentMethod === 'credit') return acc;
                return acc - t.amount;
@@ -177,20 +189,15 @@ export default function Dashboard() {
     }
   };
 
-  // --- NOVA LÓGICA DE CLICK NO LIXEIRO ---
   const handleOpenDelete = (id) => {
       const transaction = transactions.find(t => t.id === id);
-      
-      // Se for parcela, abre modal especial
       if (transaction && transaction.installmentGroupId) {
           setInstallmentDeleteModal({ isOpen: true, id: id, groupId: transaction.installmentGroupId });
       } else {
-          // Se não, abre modal normal
           setDeleteModal({ isOpen: true, id });
       }
   };
 
-  // Deletar UMA
   const handleDeleteSingle = async () => {
     const idToDelete = deleteModal.id || installmentDeleteModal.id;
     if (idToDelete) {
@@ -214,7 +221,6 @@ export default function Dashboard() {
     }
   };
 
-  // Deletar TODAS (Parcelas)
   const handleDeleteAllInstallments = async () => {
       if (installmentDeleteModal.groupId) {
           await deleteInstallmentGroup(installmentDeleteModal.groupId);
@@ -235,10 +241,8 @@ export default function Dashboard() {
     <div className="pb-24">
       <Notification message={notification?.msg} type={notification?.type} onClose={() => setNotification(null)} />
       
-      {/* Modal Normal */}
       <ConfirmModal isOpen={deleteModal.isOpen} onClose={() => setDeleteModal({ isOpen: false, id: null })} onConfirm={handleDeleteSingle} title="Excluir Transação" message="Confirma a exclusão?" />
 
-      {/* NOVO: Modal de Parcelas */}
       <InstallmentDeleteModal 
          isOpen={installmentDeleteModal.isOpen}
          onClose={() => setInstallmentDeleteModal({ isOpen: false, id: null, groupId: null })}
@@ -299,7 +303,7 @@ export default function Dashboard() {
                 transactions={filteredTransactions.filter(t => !t.isFuture)} 
                 wallets={wallets} 
                 onEdit={setEditingData} 
-                onDelete={handleOpenDelete} // <--- Alterado para a nova função
+                onDelete={handleOpenDelete} 
                 onToggleDebt={toggleDebtStatus} 
                 editingId={editingData?.id} 
             />
