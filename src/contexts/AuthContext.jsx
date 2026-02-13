@@ -2,9 +2,12 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { auth, db } from "../services/firebase";
 import { 
   onAuthStateChanged, 
-  signInWithRedirect, // <--- MUDANÇA 1: Importar Redirect em vez de Popup
+  signInWithRedirect, 
+  getRedirectResult, // <--- IMPORTANTE: Função para capturar o retorno do login
   GoogleAuthProvider, 
-  signOut 
+  signOut,
+  setPersistence, // <--- Para forçar persistência local
+  browserLocalPersistence
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
@@ -16,7 +19,7 @@ export function useAuth() {
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
-  const [userProfile, setUserProfile] = useState(null); 
+  const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
   const checkUserProfile = async (user) => {
@@ -31,7 +34,7 @@ export function AuthProvider({ children }) {
           uid: user.uid,
           email: user.email,
           displayName: user.displayName,
-          isAuthorized: false, 
+          isAuthorized: false,
           createdAt: serverTimestamp()
         };
         
@@ -43,10 +46,11 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // --- MUDANÇA 2: Usar Redirect ---
-  // Isso resolve o problema do login não abrir no iPhone (PWA)
   const login = async () => {
     const provider = new GoogleAuthProvider();
+    // Força a persistência LOCAL antes de redirecionar
+    // Isso ajuda o PWA a não "esquecer" a sessão no meio do caminho
+    await setPersistence(auth, browserLocalPersistence);
     await signInWithRedirect(auth, provider);
   };
 
@@ -56,10 +60,24 @@ export function AuthProvider({ children }) {
   };
 
   useEffect(() => {
+    // 1. Tenta capturar o resultado do redirecionamento assim que o app monta
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (result && result.user) {
+          // Se voltou do Google com sucesso, já carrega o perfil
+          await checkUserProfile(result.user);
+        }
+      })
+      .catch((error) => {
+        console.error("Erro no redirecionamento PWA:", error);
+      });
+
+    // 2. Ouve mudanças de estado (para logins normais ou recarregamentos)
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
-        // Se precisar forçar refresh do token: await user.getIdToken(true);
         setCurrentUser(user);
+        // Só busca o perfil se ainda não tivermos (evita duplicidade com o getRedirectResult)
+        // Mas por segurança, chamar aqui garante que funcione sempre
         await checkUserProfile(user); 
       } else {
         setCurrentUser(null);
@@ -73,7 +91,7 @@ export function AuthProvider({ children }) {
 
   const value = {
     currentUser,
-    userProfile, 
+    userProfile,
     loading,
     login,
     logout
