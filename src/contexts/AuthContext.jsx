@@ -2,7 +2,8 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { auth, db } from "../services/firebase";
 import { 
   onAuthStateChanged, 
-  signInWithPopup, // <--- MUDANÇA PRINCIPAL: Usar Popup
+  signInWithRedirect, 
+  getRedirectResult, // Importante para debugar
   GoogleAuthProvider, 
   signOut,
   setPersistence, 
@@ -21,7 +22,7 @@ export function AuthProvider({ children }) {
   const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // Função auxiliar para buscar/criar perfil no banco
+  // ... (Mantenha sua função checkUserProfile igualzinha estava) ...
   const checkUserProfile = async (user) => {
     if (!user) return;
     try {
@@ -49,17 +50,14 @@ export function AuthProvider({ children }) {
   const login = async () => {
     try {
         const provider = new GoogleAuthProvider();
-        
-        // Garante persistência LOCAL
+        // Define persistência LOCAL para garantir que o PWA lembre do usuário
         await setPersistence(auth, browserLocalPersistence);
         
-        // MUDANÇA AQUI: Popup é imune a bloqueios de redirect e 404 da Vercel
-        await signInWithPopup(auth, provider);
-        
-        // O onAuthStateChanged vai capturar o sucesso automaticamente
+        // VOLTAMOS PARA REDIRECT (Correto para PWA)
+        await signInWithRedirect(auth, provider);
     } catch (error) {
         console.error("Erro ao iniciar login:", error);
-        alert("Erro ao logar: " + error.message); // Alerta visual para debug
+        alert("Erro ao iniciar login: " + error.message);
     }
   };
 
@@ -69,29 +67,30 @@ export function AuthProvider({ children }) {
   };
 
   useEffect(() => {
-    // Escuta mudanças na autenticação
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-        try {
-            if (user) {
-                // Usuário logado
-                setCurrentUser(user);
-                await checkUserProfile(user); 
-            } else {
-                // Ninguém logado
-                setCurrentUser(null);
-                setUserProfile(null);
-            }
-        } catch (error) {
-            console.error("Erro no listener de auth:", error);
-        } finally {
-            // Remove o loading independente do resultado
-            setLoading(false);
+    // 1. Verifica se estamos voltando de um redirecionamento (Login com sucesso)
+    getRedirectResult(auth).then(async (result) => {
+        if (result && result.user) {
+            console.log("Voltou do Redirect com sucesso:", result.user);
+            await checkUserProfile(result.user);
         }
+    }).catch((error) => {
+        console.error("Erro no retorno do Redirect:", error);
     });
 
-    // Limpa o listener ao desmontar
+    // 2. Monitora o estado normal
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        if (user) {
+            setCurrentUser(user);
+            if (!userProfile) await checkUserProfile(user);
+        } else {
+            setCurrentUser(null);
+            setUserProfile(null);
+        }
+        setLoading(false);
+    });
+
     return () => unsubscribe();
-  }, []);
+  }, []); // Array vazio, roda só na montagem
 
   const value = {
     currentUser,
