@@ -51,11 +51,13 @@ export function useTransactions() {
     return unsubscribe;
   }, [currentUser, userProfile]);
 
+  // --- CORREÇÃO AQUI: Incluindo APENAS Segundos ---
   const parseDate = (dateString) => {
     if (!dateString) return serverTimestamp();
     const now = new Date();
     const [year, month, day] = dateString.split('-').map(Number);
-    return new Date(year, month - 1, day, now.getHours(), now.getMinutes());
+    // Adicionei now.getSeconds() ao final
+    return new Date(year, month - 1, day, now.getHours(), now.getMinutes(), now.getSeconds());
   };
 
   const addMonths = (date, months) => {
@@ -132,7 +134,7 @@ export function useTransactions() {
             isDebt: !!isDebt,
             debtPaid: false,
             isFuture: !!isFuture,
-            date: parseDate(currentInstallmentDateString),
+            date: parseDate(currentInstallmentDateString), // Usa a nova função
             walletId: walletId || null,
             subscriptionId: subscriptionId || null,
             assetId: assetId || null,
@@ -155,7 +157,7 @@ export function useTransactions() {
     
     const batch = writeBatch(db);
     const parsedAmount = parseFloat(amount);
-    const transactionDate = parseDate(date);
+    const transactionDate = parseDate(date); // Usa a nova função
 
     const docRef1 = doc(collection(db, "transactions"));
     batch.set(docRef1, {
@@ -220,7 +222,6 @@ export function useTransactions() {
     }
   };
 
-  // --- NOVA FUNÇÃO: Deletar todas as parcelas ---
   const deleteInstallmentGroup = async (groupId) => {
     if (!userProfile?.isAuthorized || !groupId) return;
 
@@ -336,7 +337,7 @@ export function useTransactions() {
     addTransaction, 
     addTransfer, 
     deleteTransaction,
-    deleteInstallmentGroup, // <--- Exportada
+    deleteInstallmentGroup,
     deleteTransactionsByAssetId,
     updateTransaction, 
     toggleDebtStatus,
