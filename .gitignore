@@ -31,3 +31,6 @@ dist-ssr
 # Service Account Keys
 ativar-admin.js
 service-account.json
+
+# Claude AI
+.claude/
