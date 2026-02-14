@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
+import { initializeAuth, indexedDBLocalPersistence, browserLocalPersistence } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check"; 
 
@@ -28,7 +28,10 @@ if (typeof window !== 'undefined') {
   });
 }
 
-export const auth = getAuth(app);
+// IndexedDB persistence funciona melhor em PWA standalone (iOS)
+export const auth = initializeAuth(app, {
+  persistence: [indexedDBLocalPersistence, browserLocalPersistence]
+});
 export const db = getFirestore(app);
 
 export default app;
