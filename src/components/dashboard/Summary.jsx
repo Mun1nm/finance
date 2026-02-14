@@ -4,7 +4,7 @@ export function Summary({ transactions, assets = [], totalBalance, budgets = [],
 
   const income = transactions
     .filter((t) => t.type === "income")
-    .filter((t) => !(t.isDebt && !t.debtPaid))
+    .filter((t) => !t.isDebt)
     .reduce((acc, t) => acc + t.amount, 0);
 
   const expense = transactions
