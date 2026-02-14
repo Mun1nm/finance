@@ -91,29 +91,47 @@ export function AuthProvider({ children }) {
   };
 
   useEffect(() => {
-    // Processa retorno do signInWithRedirect (PWA standalone)
-    getRedirectResult(auth).catch((err) => {
-      console.error("Erro no redirect login:", err);
-    });
+    let isMounted = true;
+    let unsubscribe = () => {};
 
-    const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
-        // Se o login() já processou este usuário, não duplica
-        if (currentUser?.uid === user.uid && userProfile) {
+    const init = async () => {
+      try {
+        // 1. Processa redirect PRIMEIRO (se voltando do Google OAuth)
+        const result = await getRedirectResult(auth);
+        if (result?.user && isMounted) {
+          await result.user.getIdToken(true);
+          setCurrentUser(result.user);
+          await checkUserProfile(result.user);
           setLoading(false);
-          return;
+          return; // Redirect processado, onAuthStateChanged vai cuidar do resto
         }
-        await user.getIdToken(true);
-        setCurrentUser(user);
-        await checkUserProfile(user);
-      } else {
-        setCurrentUser(null);
-        setUserProfile(null);
+      } catch (err) {
+        console.error("Erro no redirect login:", err);
       }
-      setLoading(false);
-    });
 
-    return unsubscribe;
+      // 2. Se não veio de redirect, escuta auth state normalmente
+      if (!isMounted) return;
+
+      unsubscribe = onAuthStateChanged(auth, async (user) => {
+        if (!isMounted) return;
+        if (user) {
+          await user.getIdToken(true);
+          setCurrentUser(user);
+          await checkUserProfile(user);
+        } else {
+          setCurrentUser(null);
+          setUserProfile(null);
+        }
+        setLoading(false);
+      });
+    };
+
+    init();
+
+    return () => {
+      isMounted = false;
+      unsubscribe();
+    };
   }, []);
 
   const value = {
