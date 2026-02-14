@@ -64,7 +64,7 @@ export default function Dashboard() {
     return filteredTransactions.reduce((acc, t) => {
       if (t.isFuture || t.isTransfer) return acc;
       if (t.type === 'income') {
-        if (t.isDebt && !t.debtPaid) return acc;
+        if (t.isDebt) return acc; // income+isDebt nunca afeta saldo
         return acc + t.amount;
       }
       if (t.type === 'expense') {
@@ -81,7 +81,7 @@ export default function Dashboard() {
       if (t.isFuture || t.isTransfer) return acc;
       if (t.date && t.date.seconds * 1000 > new Date().getTime()) return acc;
       if (t.type === 'income') {
-        if (t.isDebt && !t.debtPaid) return acc;
+        if (t.isDebt) return acc; // income+isDebt nunca afeta saldo
         return acc + t.amount;
       }
       if (t.type === 'expense') {
@@ -106,8 +106,7 @@ export default function Dashboard() {
         .filter(t => t.walletId === w.id && !t.isFuture && t.date && t.date.seconds * 1000 <= new Date().getTime())
         .reduce((acc, t) => {
            if (t.type === 'income') {
-               // Empréstimo DE alguém não creditado até ser pago de volta
-               if (t.isDebt && !t.debtPaid) return acc;
+               if (t.isDebt) return acc; // income+isDebt nunca afeta saldo
                return acc + t.amount;
            }
            if (t.type === 'expense' || t.type === 'investment') {
