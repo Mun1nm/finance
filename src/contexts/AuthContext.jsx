@@ -2,9 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import { auth, db } from "../services/firebase";
 import {
   onAuthStateChanged,
-  signInWithPopup,
-  signInWithRedirect,
-  getRedirectResult,
+  signInWithCredential,
   GoogleAuthProvider,
   signOut
 } from "firebase/auth";
@@ -18,7 +16,7 @@ export function useAuth() {
 
 export function AuthProvider({ children }) {
   const [currentUser, setCurrentUser] = useState(null);
-  const [userProfile, setUserProfile] = useState(null); // Guarda dados do banco (isAuthorized)
+  const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
   // Verifica ou cria o perfil no Firestore
@@ -30,15 +28,14 @@ export function AuthProvider({ children }) {
       if (userSnap.exists()) {
         setUserProfile(userSnap.data());
       } else {
-        // Primeiro acesso: Cria registro BLOQUEADO
         const newProfile = {
           uid: user.uid,
           email: user.email,
           displayName: user.displayName,
-          isAuthorized: false, // Começa como false
+          isAuthorized: false,
           createdAt: serverTimestamp()
         };
-        
+
         await setDoc(userRef, newProfile);
         setUserProfile(newProfile);
       }
@@ -47,42 +44,19 @@ export function AuthProvider({ children }) {
     }
   };
 
-  // Detecta se está rodando como PWA standalone (iOS Safari "Adicionar ao Menu Inicial")
-  const isStandalone = () => {
-    return window.matchMedia('(display-mode: standalone)').matches
-      || window.navigator.standalone === true;
-  };
-
-  const login = () => {
-    const provider = new GoogleAuthProvider();
-
-    // PWA standalone no iOS não suporta popups — usa redirect
-    if (isStandalone()) {
-      return signInWithRedirect(auth, provider);
+  // Callback do Google Identity Services — recebe o JWT e autentica no Firebase
+  const handleGoogleCredential = async (response) => {
+    try {
+      const credential = GoogleAuthProvider.credential(response.credential);
+      const result = await signInWithCredential(auth, credential);
+      await result.user.getIdToken(true);
+      setCurrentUser(result.user);
+      await checkUserProfile(result.user);
+      setLoading(false);
+    } catch (error) {
+      console.error("Erro no login Google:", error);
+      throw error;
     }
-
-    // Navegador normal — usa popup com espera completa
-    return new Promise((resolve, reject) => {
-      const unsubscribeTemp = onAuthStateChanged(auth, async (user) => {
-        if (user) {
-          unsubscribeTemp();
-          try {
-            await user.getIdToken(true);
-            setCurrentUser(user);
-            await checkUserProfile(user);
-            setLoading(false);
-            resolve();
-          } catch (err) {
-            reject(err);
-          }
-        }
-      });
-
-      signInWithPopup(auth, provider).catch((err) => {
-        unsubscribeTemp();
-        reject(err);
-      });
-    });
   };
 
   const logout = () => {
@@ -91,54 +65,26 @@ export function AuthProvider({ children }) {
   };
 
   useEffect(() => {
-    let isMounted = true;
-    let unsubscribe = () => {};
-
-    const init = async () => {
-      try {
-        // 1. Processa redirect PRIMEIRO (se voltando do Google OAuth)
-        const result = await getRedirectResult(auth);
-        if (result?.user && isMounted) {
-          await result.user.getIdToken(true);
-          setCurrentUser(result.user);
-          await checkUserProfile(result.user);
-          setLoading(false);
-          return; // Redirect processado, onAuthStateChanged vai cuidar do resto
-        }
-      } catch (err) {
-        console.error("Erro no redirect login:", err);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        await user.getIdToken(true);
+        setCurrentUser(user);
+        await checkUserProfile(user);
+      } else {
+        setCurrentUser(null);
+        setUserProfile(null);
       }
+      setLoading(false);
+    });
 
-      // 2. Se não veio de redirect, escuta auth state normalmente
-      if (!isMounted) return;
-
-      unsubscribe = onAuthStateChanged(auth, async (user) => {
-        if (!isMounted) return;
-        if (user) {
-          await user.getIdToken(true);
-          setCurrentUser(user);
-          await checkUserProfile(user);
-        } else {
-          setCurrentUser(null);
-          setUserProfile(null);
-        }
-        setLoading(false);
-      });
-    };
-
-    init();
-
-    return () => {
-      isMounted = false;
-      unsubscribe();
-    };
+    return unsubscribe;
   }, []);
 
   const value = {
     currentUser,
-    userProfile, // Exposto para o app checar userProfile.isAuthorized
+    userProfile,
     loading,
-    login,
+    handleGoogleCredential,
     logout
   };
 
