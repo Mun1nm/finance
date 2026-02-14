@@ -4,6 +4,7 @@ export function Summary({ transactions, assets = [], totalBalance, budgets = [],
 
   const income = transactions
     .filter((t) => t.type === "income")
+    .filter((t) => !(t.isDebt && !t.debtPaid))
     .reduce((acc, t) => acc + t.amount, 0);
 
   const expense = transactions
@@ -15,9 +16,16 @@ export function Summary({ transactions, assets = [], totalBalance, budgets = [],
     .filter((t) => t.type === "investment")
     .reduce((acc, t) => acc + t.amount, 0);
 
+  // Saldo líquido de dívidas pendentes:
+  // expense+isDebt = alguém me deve (positivo / a receber)
+  // income+isDebt = eu devo a alguém (negativo / a pagar)
   const pendingDebt = transactions
     .filter((t) => t.isDebt && !t.debtPaid)
-    .reduce((acc, t) => acc + t.amount, 0);
+    .reduce((acc, t) => {
+      if (t.type === 'expense') return acc + t.amount;  // a receber
+      if (t.type === 'income') return acc - t.amount;   // devo
+      return acc;
+    }, 0);
 
   const totalNetWorth = assets.reduce((acc, a) => acc + (a.currentValue || 0), 0);
 
@@ -111,9 +119,13 @@ export function Summary({ transactions, assets = [], totalBalance, budgets = [],
           <span className="font-bold text-xl lg:text-2xl">R$ {totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
         </div>
         
-        {pendingDebt > 0 && (
-          <span className="text-[10px] text-orange-400 mt-1 bg-orange-900/20 px-2 py-0.5 rounded-full border border-orange-900/50 flex items-center gap-1">
-             + R$ {pendingDebt.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} a receber
+        {pendingDebt !== 0 && (
+          <span className={`text-[10px] mt-1 px-2 py-0.5 rounded-full border flex items-center gap-1 ${
+            pendingDebt > 0
+              ? 'text-orange-400 bg-orange-900/20 border-orange-900/50'
+              : 'text-red-400 bg-red-900/20 border-red-900/50'
+          }`}>
+             {pendingDebt > 0 ? '+' : '-'} R$ {Math.abs(pendingDebt).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} {pendingDebt > 0 ? 'a receber' : 'a pagar'}
           </span>
         )}
       </div>

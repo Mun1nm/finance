@@ -270,31 +270,37 @@ export function useTransactions() {
     if (!debtSnap.exists()) return;
     const debtData = debtSnap.data();
 
-    // Cenário 1: Marcar como PAGO (Criar Transação de Entrada)
+    // Cenário 1: Marcar como PAGO
     if (!currentStatus) {
         const batch = writeBatch(db);
         const reimbursementRef = doc(collection(db, "transactions"));
-        
+
+        // Se a dívida original é expense (emprestei PARA alguém) → reembolso é income (recebi de volta)
+        // Se a dívida original é income (empréstimo DE alguém) → reembolso é expense (paguei de volta)
+        const isPayingBack = debtData.type === "income";
+
         const reimbursementData = {
             uid: currentUser.uid,
-            amount: debtData.amount, // Valor recebido
+            amount: debtData.amount,
             category: "Reembolso",
-            macro: "Receitas",
-            type: "income", // Dinheiro entrando na conta
-            description: `Reembolso: ${debtData.description || 'Dívida'}`,
+            macro: isPayingBack ? "Despesas" : "Receitas",
+            type: isPayingBack ? "expense" : "income",
+            description: isPayingBack
+                ? `Pagamento: ${debtData.description || 'Empréstimo'}`
+                : `Reembolso: ${debtData.description || 'Dívida'}`,
             isDebt: false,
             debtPaid: false,
             isFuture: false,
-            date: serverTimestamp(), // Recebido hoje
-            walletId: debtData.walletId, // Entra na mesma carteira usada na despesa
+            date: serverTimestamp(),
+            walletId: debtData.walletId,
             paymentMethod: 'debit',
-            relatedDebtId: id // Link para saber de onde veio
+            relatedDebtId: id
         };
 
         batch.set(reimbursementRef, reimbursementData);
-        batch.update(debtRef, { 
-            debtPaid: true, 
-            reimbursementId: reimbursementRef.id 
+        batch.update(debtRef, {
+            debtPaid: true,
+            reimbursementId: reimbursementRef.id
         });
 
         await batch.commit();
