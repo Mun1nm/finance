@@ -1,26 +1,62 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { LogIn } from "lucide-react"; // Ícone
 
 export default function Login() {
-  const { login } = useAuth();
+  const { handleGoogleCredential, currentUser, userProfile } = useAuth();
   const navigate = useNavigate();
   const [error, setError] = useState("");
-  const [loading, setLoading] = useState(false);
+  const buttonRef = useRef(null);
 
-  async function handleLogin() {
-    try {
-      setError("");
-      setLoading(true);
-      await login();
-      navigate("/"); // Redireciona para a Home após login
-    } catch (err) {
-      setError("Falha no login: " + err.message);
-    } finally {
-      setLoading(false);
+  // Redireciona se já estiver autenticado
+  useEffect(() => {
+    if (currentUser && userProfile) {
+      navigate("/");
     }
-  }
+  }, [currentUser, userProfile, navigate]);
+
+  // Inicializa o botão do Google Identity Services
+  useEffect(() => {
+    const initGoogle = () => {
+      if (!window.google?.accounts?.id || !buttonRef.current) return;
+
+      window.google.accounts.id.initialize({
+        client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+        callback: async (response) => {
+          try {
+            setError("");
+            await handleGoogleCredential(response);
+          } catch (err) {
+            setError("Falha no login: " + err.message);
+          }
+        }
+      });
+
+      window.google.accounts.id.renderButton(buttonRef.current, {
+        type: "standard",
+        theme: "filled_black",
+        size: "large",
+        text: "signin_with",
+        shape: "rectangular",
+        width: 320
+      });
+    };
+
+    // O script GIS pode ainda não ter carregado
+    if (window.google?.accounts?.id) {
+      initGoogle();
+    } else {
+      // Espera o script carregar
+      const interval = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          clearInterval(interval);
+          initGoogle();
+        }
+      }, 100);
+
+      return () => clearInterval(interval);
+    }
+  }, [handleGoogleCredential]);
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-900 px-4">
@@ -33,23 +69,16 @@ export default function Login() {
             Acesso restrito ao proprietário.
           </p>
         </div>
-        
+
         {error && (
           <div className="bg-red-500/10 border border-red-500 text-red-500 p-3 rounded text-sm">
             {error}
           </div>
         )}
 
-        <button
-          onClick={handleLogin}
-          disabled={loading}
-          className="group relative w-full flex justify-center py-3 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors"
-        >
-          <span className="absolute left-0 inset-y-0 flex items-center pl-3">
-            <LogIn className="h-5 w-5 text-blue-300 group-hover:text-blue-100" />
-          </span>
-          {loading ? "Entrando..." : "Entrar com Google"}
-        </button>
+        <div className="flex justify-center">
+          <div ref={buttonRef}></div>
+        </div>
       </div>
     </div>
   );
