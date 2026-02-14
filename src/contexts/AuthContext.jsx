@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { auth, db } from "../services/firebase";
-import { 
-  onAuthStateChanged, 
-  signInWithPopup, 
-  GoogleAuthProvider, 
-  signOut 
+import {
+  onAuthStateChanged,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  GoogleAuthProvider,
+  signOut
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 
@@ -45,11 +47,22 @@ export function AuthProvider({ children }) {
     }
   };
 
-  const login = () => {
-    return new Promise((resolve, reject) => {
-      const provider = new GoogleAuthProvider();
+  // Detecta se está rodando como PWA standalone (iOS Safari "Adicionar ao Menu Inicial")
+  const isStandalone = () => {
+    return window.matchMedia('(display-mode: standalone)').matches
+      || window.navigator.standalone === true;
+  };
 
-      // Registra listener ANTES do popup para capturar o evento auth
+  const login = () => {
+    const provider = new GoogleAuthProvider();
+
+    // PWA standalone no iOS não suporta popups — usa redirect
+    if (isStandalone()) {
+      return signInWithRedirect(auth, provider);
+    }
+
+    // Navegador normal — usa popup com espera completa
+    return new Promise((resolve, reject) => {
       const unsubscribeTemp = onAuthStateChanged(auth, async (user) => {
         if (user) {
           unsubscribeTemp();
@@ -78,6 +91,11 @@ export function AuthProvider({ children }) {
   };
 
   useEffect(() => {
+    // Processa retorno do signInWithRedirect (PWA standalone)
+    getRedirectResult(auth).catch((err) => {
+      console.error("Erro no redirect login:", err);
+    });
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         // Se o login() já processou este usuário, não duplica
