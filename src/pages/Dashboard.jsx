@@ -63,7 +63,10 @@ export default function Dashboard() {
   const monthlyBalance = useMemo(() => {
     return filteredTransactions.reduce((acc, t) => {
       if (t.isFuture || t.isTransfer) return acc;
-      if (t.type === 'income') return acc + t.amount;
+      if (t.type === 'income') {
+        if (t.isDebt && !t.debtPaid) return acc;
+        return acc + t.amount;
+      }
       if (t.type === 'expense') {
           if (t.isInvoicePayment || (t.isDebt && t.debtPaid)) return acc;
           return acc - t.amount;
@@ -75,14 +78,17 @@ export default function Dashboard() {
 
   const overallBalance = useMemo(() => {
     return transactions.reduce((acc, t) => {
-      if (t.isFuture || t.isTransfer) return acc; 
+      if (t.isFuture || t.isTransfer) return acc;
       if (t.date && t.date.seconds * 1000 > new Date().getTime()) return acc;
-      if (t.type === 'income') return acc + t.amount;
+      if (t.type === 'income') {
+        if (t.isDebt && !t.debtPaid) return acc;
+        return acc + t.amount;
+      }
       if (t.type === 'expense') {
         if (t.isDebt && t.debtPaid) return acc;
         if (t.paymentMethod === 'credit') return acc;
         return acc - t.amount;
-      } 
+      }
       if (t.type === 'investment') return acc - t.amount;
       return acc;
     }, 0);
@@ -99,7 +105,11 @@ export default function Dashboard() {
       const balance = transactions
         .filter(t => t.walletId === w.id && !t.isFuture && t.date && t.date.seconds * 1000 <= new Date().getTime())
         .reduce((acc, t) => {
-           if (t.type === 'income') return acc + t.amount;
+           if (t.type === 'income') {
+               // Empréstimo DE alguém não creditado até ser pago de volta
+               if (t.isDebt && !t.debtPaid) return acc;
+               return acc + t.amount;
+           }
            if (t.type === 'expense' || t.type === 'investment') {
                if (t.paymentMethod === 'credit') return acc;
                return acc - t.amount;
