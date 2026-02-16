@@ -3,7 +3,7 @@ import { ArrowUpCircle, ArrowDownCircle, Wallet, TrendingUp, AlertCircle } from 
 export function Summary({ transactions, assets = [], totalBalance, budgets = [], onOpenBudgetModal }) { 
 
   const income = transactions
-    .filter((t) => t.type === "income")
+    .filter((t) => t.type === "income" && !t.isFuture)
     .filter((t) => !t.isDebt)
     .reduce((acc, t) => acc + t.amount, 0);
 
@@ -103,7 +103,7 @@ export function Summary({ transactions, assets = [], totalBalance, budgets = [],
             
             {/* Linha Patrimônio */}
             <div className="mt-1 lg:mt-2 pt-2 border-t border-purple-500/30 w-full flex flex-col items-end lg:items-center">
-                <span className="text-[10px] text-gray-400 uppercase">Patrimônio Total</span>
+                <span className="text-[10px] text-gray-400 uppercase">Total de investimentos</span>
                 <span className="text-sm font-bold text-white">R$ {totalNetWorth.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
             </div>
         </div>
