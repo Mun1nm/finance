@@ -19,7 +19,6 @@ export function WalletList({ wallets, onSetDefault, onDeleteClick, onWalletClick
                     w.isDefault ? 'bg-blue-900/20 border-blue-500/50' : 'bg-gray-800 border-gray-700 hover:border-gray-500'
                 }`}
             >
-                {/* --- AÇÕES (POSICIONAMENTO ABSOLUTO) --- */}
                 <div className="absolute top-2 right-2 z-20">
                     <div className="hidden md:flex flex-col gap-1 items-center">
                          <button 
@@ -41,7 +40,6 @@ export function WalletList({ wallets, onSetDefault, onDeleteClick, onWalletClick
                         )}
                     </div>
 
-                    {/* MOBILE: Menu 3 Pontinhos */}
                     <div className="md:hidden relative">
                         <button 
                             onClick={(e) => { 
@@ -76,19 +74,16 @@ export function WalletList({ wallets, onSetDefault, onDeleteClick, onWalletClick
                     </div>
                 </div>
 
-                {/* --- CONTEÚDO DO CARD --- */}
                 <div className="flex items-center gap-2 mb-2 pr-6">
                     <span className="text-xs text-gray-400 truncate font-medium">{w.name}</span>
                     {w.hasCredit && <CreditCard size={12} className="text-purple-400 shrink-0" />}
                 </div>
 
-                {/* AJUSTE 1: Reduzi mb-3 para mb-2 */}
                 <span className={`font-bold text-lg mb-2 ${w.balance >= 0 ? 'text-white' : 'text-red-400'}`}>
                     R$ {w.balance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                 </span>
 
                 {w.hasCredit && (
-                    // AJUSTE 1: Reduzi pt-2 para pt-1
                     <div className="mt-auto pt-1">
                         {w.currentInvoice > 0 ? (
                             <button onClick={() => onWalletClick(w)} className="w-full text-[10px] bg-purple-500/20 text-purple-300 border border-purple-500/30 p-1.5 rounded flex items-center justify-between hover:bg-purple-500/30 transition-colors">

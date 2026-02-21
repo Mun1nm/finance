@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Wallet, ArrowRightLeft, Plus, Clock, Calculator, CheckSquare, Square } from "lucide-react";
+import { Wallet, ArrowRightLeft, Plus, Clock, Calculator, Layers } from "lucide-react";
 
 export function WalletHeader({ 
   overallBalance, 
@@ -7,7 +7,8 @@ export function WalletHeader({
   totalInvoices, 
   onOpenFutureModal, 
   onOpenTransferModal, 
-  onOpenCreateModal 
+  onOpenCreateModal,
+  onOpenInstallmentsModal
 }) {
   const [showNetBalance, setShowNetBalance] = useState(false);
   const displayBalance = showNetBalance ? overallBalance - totalInvoices : overallBalance;
@@ -23,12 +24,22 @@ export function WalletHeader({
                     R$ {displayBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                  </span>
                  
+                 {/* BOTAO DA CALCULADORA */}
                  <button 
                     onClick={() => setShowNetBalance(!showNetBalance)}
-                    className={`p-1.5 rounded-lg transition-all ${showNetBalance ? 'bg-orange-500/20 text-orange-400' : 'hover:bg-gray-700 text-gray-500 hover:text-white'}`}
+                    className={`p-1.5 rounded-lg border border-gray-600/50 transition-all ${showNetBalance ? 'bg-orange-500/20 text-orange-400' : 'bg-gray-700/30 text-gray-500 hover:text-white hover:bg-gray-700'}`}
                     title={showNetBalance ? "Voltar ao saldo total" : "Simular saldo líquido (descontar faturas)"}
                  >
                     <Calculator size={18} />
+                 </button>
+
+                 {/* BOTAO DE PARCELAS (Agora cinza padrão) */}
+                 <button 
+                    onClick={onOpenInstallmentsModal}
+                    className="p-1.5 rounded-lg border border-gray-600/50 transition-all bg-gray-700/30 text-gray-500 hover:text-white hover:bg-gray-700"
+                    title="Ver projeção de parcelas"
+                 >
+                    <Layers size={18} />
                  </button>
 
                  {futureBalance > 0 && (
