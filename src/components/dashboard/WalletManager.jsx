@@ -7,6 +7,7 @@ import { WalletList } from "./wallet/WalletList";
 import { CreateWalletModal } from "./wallet/CreateWalletModal";
 import { TransferModal } from "./wallet/TransferModal";
 import { DeleteWalletModal } from "./wallet/DeleteWalletModal";
+import { InstallmentsModal } from "./wallet/InstallmentsModal"; // <-- Importe o novo modal
 
 export function WalletManager({ 
   wallets, 
@@ -28,6 +29,7 @@ export function WalletManager({
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [walletDeleteData, setWalletDeleteData] = useState(null);
   const [invoiceModalWallet, setInvoiceModalWallet] = useState(null);
+  const [isInstallmentsModalOpen, setIsInstallmentsModalOpen] = useState(false); // <-- Estado em vez do objeto carteira
   
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -40,6 +42,7 @@ export function WalletManager({
       }
   }, [walletBalances]);
 
+  // ... (handleCreateWallet, handleTransfer, handleConfirmDelete ficam iguais) ...
   const handleCreateWallet = async (name, hasCredit, closingDay, dueDay, creditLimit) => {
     try {
         setIsSubmitting(true);
@@ -56,12 +59,10 @@ export function WalletManager({
   const handleTransfer = async (amount, from, to, date) => {
     const fromWallet = wallets.find(w => w.id === from);
     const toWallet = wallets.find(w => w.id === to);
-    
     if (!fromWallet || !toWallet) {
         setNotification({ msg: "Selecione origem e destino.", type: "error" });
         return;
     }
-    
     try {
         setIsSubmitting(true);
         await onTransfer(amount, from, to, date, fromWallet.name, toWallet.name);
@@ -77,42 +78,21 @@ export function WalletManager({
   const handleConfirmDelete = async (id, destinyId) => {
     const wallet = walletDeleteData;
     const { name, balance } = wallet;
-
     try {
         setIsSubmitting(true);
-
         if (Math.abs(balance) > 0.01) {
             if (destinyId) {
                 const destinyWallet = wallets.find(w => w.id === destinyId);
                 const destinyName = destinyWallet ? destinyWallet.name : "Desconhecida";
-
-                await onTransfer(
-                    Math.abs(balance),
-                    balance > 0 ? id : destinyId,
-                    balance > 0 ? destinyId : id,
-                    new Date().toISOString().split('T')[0],
-                    balance > 0 ? name : destinyName,
-                    balance > 0 ? destinyName : name
-                );
+                await onTransfer(Math.abs(balance), balance > 0 ? id : destinyId, balance > 0 ? destinyId : id, new Date().toISOString().split('T')[0], balance > 0 ? name : destinyName, balance > 0 ? destinyName : name);
             } else {
                 const type = balance > 0 ? 'expense' : 'income';
-                await onAddTransaction(
-                    Math.abs(balance),
-                    "Ajuste de Saldo",
-                    "Outros",
-                    type,
-                    false,
-                    `Encerramento da carteira: ${name}`,
-                    new Date().toISOString().split('T')[0],
-                    id
-                );
+                await onAddTransaction(Math.abs(balance), "Ajuste de Saldo", "Outros", type, false, `Encerramento da carteira: ${name}`, new Date().toISOString().split('T')[0], id);
             }
         }
-
         await onDeleteWallet(id);
         setWalletDeleteData(null);
         setNotification({ msg: "Carteira excluída.", type: "success" });
-        
     } catch (error) {
         console.error("Erro", error);
         setNotification({ msg: "Erro ao excluir carteira.", type: "error" });
@@ -127,12 +107,10 @@ export function WalletManager({
           setNotification({ msg: "Saldo insuficiente nesta carteira!", type: "error" });
           throw new Error("Saldo insuficiente");
       }
-
       await payInvoice(walletId, amount, invoiceDate, transactionIds);
       setNotification({ msg: "Fatura paga com sucesso!", type: "success" });
   };
 
-  // CORRIGIDO: Usa 'allUnpaidInvoices' para somar TUDO (futuras inclusas)
   const totalInvoices = walletBalances.reduce((acc, w) => acc + (w.allUnpaidInvoices || 0), 0);
 
   return (
@@ -144,6 +122,7 @@ export function WalletManager({
             onOpenFutureModal={onOpenFutureModal}
             onOpenTransferModal={() => setIsTransferModalOpen(true)}
             onOpenCreateModal={() => setIsWalletModalOpen(true)}
+            onOpenInstallmentsModal={() => setIsInstallmentsModalOpen(true)} // <-- Passando a função
         />
 
         <WalletList 
@@ -153,37 +132,21 @@ export function WalletManager({
             onWalletClick={setInvoiceModalWallet}
         />
 
-        <CreateWalletModal 
-            isOpen={isWalletModalOpen}
-            onClose={() => setIsWalletModalOpen(false)}
-            onAddWallet={handleCreateWallet}
-            isSubmitting={isSubmitting}
-        />
-
-        <TransferModal 
-            isOpen={isTransferModalOpen}
-            onClose={() => setIsTransferModalOpen(false)}
-            onTransfer={handleTransfer}
-            wallets={wallets}
-            isSubmitting={isSubmitting}
-        />
-
-        <DeleteWalletModal 
-            wallet={walletDeleteData}
-            onClose={() => setWalletDeleteData(null)}
-            onConfirm={handleConfirmDelete}
-            wallets={wallets}
-            isSubmitting={isSubmitting}
-        />
+        <CreateWalletModal isOpen={isWalletModalOpen} onClose={() => setIsWalletModalOpen(false)} onAddWallet={handleCreateWallet} isSubmitting={isSubmitting} />
+        <TransferModal isOpen={isTransferModalOpen} onClose={() => setIsTransferModalOpen(false)} onTransfer={handleTransfer} wallets={wallets} isSubmitting={isSubmitting} />
+        <DeleteWalletModal wallet={walletDeleteData} onClose={() => setWalletDeleteData(null)} onConfirm={handleConfirmDelete} wallets={wallets} isSubmitting={isSubmitting} />
 
         {invoiceModalWallet && (
-            <InvoiceModal 
-                wallet={invoiceModalWallet}
-                transactions={transactions}
-                onClose={() => setInvoiceModalWallet(null)}
-                onPayInvoice={handlePayInvoice}
-            />
+            <InvoiceModal wallet={invoiceModalWallet} transactions={transactions} onClose={() => setInvoiceModalWallet(null)} onPayInvoice={handlePayInvoice} />
         )}
+
+        {/* NOVO MODAL GLOBAL DE PARCELAS */}
+        <InstallmentsModal 
+            isOpen={isInstallmentsModalOpen}
+            transactions={transactions}
+            wallets={wallets}
+            onClose={() => setIsInstallmentsModalOpen(false)}
+        />
     </div>
   );
 }
