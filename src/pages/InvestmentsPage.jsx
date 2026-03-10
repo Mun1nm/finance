@@ -82,7 +82,7 @@ export default function InvestmentsPage() {
       await processWithdrawal(selectedAsset.id, grossAmount, isFullWithdrawal);
       
       // CORREÇÃO: Passando 'today' em vez de null
-      await addTransaction(netAmount, selectedAsset.name, "Rendimentos", "income", false, "Resgate de Investimento", today, selectedWallet, null, selectedAsset.id);
+      await addTransaction(grossAmount, selectedAsset.name, "Rendimentos", "income", false, "Resgate de Investimento", today, selectedWallet, null, selectedAsset.id);
 
       if (tax > 0) {
         // CORREÇÃO: Passando 'today' em vez de null na taxa também
