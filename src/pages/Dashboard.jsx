@@ -68,7 +68,9 @@ export default function Dashboard() {
         return acc + t.amount;
       }
       if (t.type === 'expense') {
-          if (t.isInvoicePayment || (t.isDebt && t.debtPaid)) return acc;
+          if (t.isInvoicePayment) return acc;
+          if (t.isBorrowed) return t.debtPaid ? acc - t.amount : acc;
+          if (t.isDebt && t.debtPaid) return acc;
           return acc - t.amount;
       }
       if (t.type === 'investment') return acc - t.amount;
@@ -85,6 +87,7 @@ export default function Dashboard() {
         return acc + t.amount;
       }
       if (t.type === 'expense') {
+        if (t.isBorrowed) return t.debtPaid ? acc - t.amount : acc;
         if (t.isDebt && t.debtPaid) return acc;
         if (t.paymentMethod === 'credit') return acc;
         return acc - t.amount;
@@ -110,6 +113,7 @@ export default function Dashboard() {
                return acc + t.amount;
            }
            if (t.type === 'expense' || t.type === 'investment') {
+               if (t.isBorrowed) return t.debtPaid ? acc - t.amount : acc;
                if (t.paymentMethod === 'credit') return acc;
                return acc - t.amount;
            }
@@ -151,7 +155,7 @@ export default function Dashboard() {
   }, [wallets, transactions]);
 
   const handleFormSubmit = async (formData) => {
-    const { amount, categoryName, macro, type, isSubscription, isDebt, description, assetId, date, walletId, dueDay, personId, isFuture, paymentMethod, invoiceDate, installments, closingDay } = formData;
+    const { amount, categoryName, macro, type, isSubscription, isDebt, isBorrowed, description, assetId, date, walletId, dueDay, personId, isFuture, paymentMethod, invoiceDate, installments, closingDay } = formData;
     const todayDay = new Date().getDate();
 
     if (editingData) {
@@ -175,7 +179,7 @@ export default function Dashboard() {
       const shouldProcessNow = !isSubscription || (isSubscription && dueDay <= todayDay);
       if (shouldProcessNow) {
           if (type === 'investment' && assetId) await addContribution(assetId, amount);
-          await addTransaction(amount, categoryName, macro, type, isDebt, description, date, walletId, null, assetId, personId, isFuture, paymentMethod, invoiceDate, false, installments, closingDay);
+          await addTransaction(amount, categoryName, macro, type, isDebt, description, date, walletId, null, assetId, personId, isFuture, paymentMethod, invoiceDate, false, installments, closingDay, isBorrowed);
       }
       if (isSubscription) {
         await createSubscription(amount, categoryName, macro, categoryName, type, dueDay, walletId, shouldProcessNow, paymentMethod);

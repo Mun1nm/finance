@@ -55,7 +55,10 @@ export function TransactionCard({ t, wallets, onEdit, onDelete, onToggleDebt, ed
                   {isDebtItem && (
                     <span className={`text-[10px] px-1.5 py-0.5 rounded flex items-center gap-1 border shrink-0 ${isPaidDebt ? 'bg-green-900/30 text-green-500 border-green-800' : 'bg-orange-900/30 text-orange-400 border-orange-800'}`}>
                       {isPaidDebt ? <Check size={10} /> : <User size={10} />}
-                      {isPaidDebt ? (t.type === 'expense' ? 'Devolvido' : 'Pago') : (t.type === 'expense' ? 'A receber' : 'A pagar')}
+                      {isPaidDebt
+                        ? (t.isBorrowed ? 'Pago' : (t.type === 'expense' ? 'Devolvido' : 'Pago'))
+                        : (t.isBorrowed ? 'A pagar' : (t.type === 'expense' ? 'A receber' : 'A pagar'))
+                      }
                     </span>
                   )}
 
@@ -84,7 +87,7 @@ export function TransactionCard({ t, wallets, onEdit, onDelete, onToggleDebt, ed
                 
                 {isDebtItem && !isPaidDebt && (
                     <button onClick={() => onToggleDebt(t.id, t.debtPaid)} className="text-[10px] text-orange-400 hover:text-orange-300 underline mt-1">
-                        {t.type === 'expense' ? 'Marcar Recebido' : 'Marcar Pago'}
+                        {t.isBorrowed ? 'Marcar Pago' : (t.type === 'expense' ? 'Marcar Recebido' : 'Marcar Pago')}
                     </button>
                 )}
                 

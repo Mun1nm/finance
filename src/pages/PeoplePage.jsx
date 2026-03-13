@@ -53,8 +53,9 @@ export default function PeoplePage() {
 
     const balance = history.reduce((acc, t) => {
         if (t.debtPaid) return acc;
-        if (t.type === 'expense') return acc + t.amount;
-        if (t.type === 'income') return acc - t.amount;
+        if (t.type === 'expense' && !t.isBorrowed) return acc + t.amount;  // Te deve
+        if (t.type === 'expense' && t.isBorrowed)  return acc - t.amount;  // Você deve
+        if (t.type === 'income')                   return acc - t.amount;  // legado: Você deve
         return acc;
     }, 0);
 

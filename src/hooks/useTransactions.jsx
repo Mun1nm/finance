@@ -81,7 +81,7 @@ export function useTransactions() {
       return `${year}-${String(month + 1).padStart(2, '0')}`;
   };
 
-  const addTransaction = async (amount, category, macro, type = 'expense', isDebt = false, description = "", date = null, walletId = null, subscriptionId = null, assetId = null, personId = null, isFuture = false, paymentMethod = 'debit', invoiceDate = null, isInvoicePayment = false, installments = 1, closingDay = null) => {
+  const addTransaction = async (amount, category, macro, type = 'expense', isDebt = false, description = "", date = null, walletId = null, subscriptionId = null, assetId = null, personId = null, isFuture = false, paymentMethod = 'debit', invoiceDate = null, isInvoicePayment = false, installments = 1, closingDay = null, isBorrowed = false) => {
     if (!userProfile?.isAuthorized) return;
     if (!amount) return;
 
@@ -131,6 +131,7 @@ export function useTransactions() {
             type,
             description: finalDesc,
             isDebt: !!isDebt,
+            isBorrowed: !!isBorrowed,
             debtPaid: false,
             isFuture: !!isFuture,
             date: parseDate(currentInstallmentDateString),
@@ -249,11 +250,11 @@ export function useTransactions() {
     await batch.commit();
   };
 
-  const updateTransaction = async (id, amount, category, macro, type, isDebt, description = "", date = null, walletId = null, isFuture = false, paymentMethod = 'debit', invoiceDate = null) => {
+  const updateTransaction = async (id, amount, category, macro, type, isDebt, description = "", date = null, walletId = null, isFuture = false, paymentMethod = 'debit', invoiceDate = null, isBorrowed = false) => {
     if (!userProfile?.isAuthorized) return;
     const docRef = doc(db, "transactions", id);
     const updateData = {
-      amount: parseFloat(amount), category, macro, type, isDebt: !!isDebt, isFuture: !!isFuture,
+      amount: parseFloat(amount), category, macro, type, isDebt: !!isDebt, isBorrowed: !!isBorrowed, isFuture: !!isFuture,
       description, walletId: walletId || null, paymentMethod, invoiceDate
     };
     if (date) updateData.date = parseDate(date);
@@ -269,6 +270,12 @@ export function useTransactions() {
 
     if (!debtSnap.exists()) return;
     const debtData = debtSnap.data();
+
+    // isBorrowed: toggle simples, sem transação de reembolso
+    if (debtData.isBorrowed) {
+        await updateDoc(debtRef, { debtPaid: !currentStatus });
+        return;
+    }
 
     // Cenário 1: Marcar como PAGO
     if (!currentStatus) {

@@ -18,6 +18,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
   const [type, setType] = useState("expense");
   const [isSubscription, setIsSubscription] = useState(false);
   const [isDebt, setIsDebt] = useState(false);
+  const [isBorrowed, setIsBorrowed] = useState(false);
   const [isFuture, setIsFuture] = useState(false);
   const [selectedWallet, setSelectedWallet] = useState("");
   const [selectedPerson, setSelectedPerson] = useState("");
@@ -65,6 +66,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       }
       setIsSubscription(false);
       setIsDebt(initialData.isDebt || false);
+      setIsBorrowed(initialData.isBorrowed || false);
       setIsFuture(initialData.isFuture || false);
       setSelectedWallet(initialData.walletId || "");
       setSelectedPerson(initialData.personId || "");
@@ -84,18 +86,20 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
       setDate(today);
       setIsSubscription(false);
       setIsDebt(false);
+      setIsBorrowed(false);
       setIsFuture(false);
       setSelectedPerson("");
       setPaymentMethod("debit");
       setDueDay(new Date().getDate());
       setIsInstallment(false);
       setInstallmentsCount(2);
-      setDefaultWallet(); 
+      setDefaultWallet();
   };
 
   const handleTypeReset = () => {
       setSelectedId("");
       setIsDebt(false);
+      setIsBorrowed(false);
       setIsFuture(false);
   };
 
@@ -103,7 +107,8 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
     e.preventDefault();
     if (isSubmitting) return;
 
-    if (!amount || !selectedId) return;
+    if (!amount) return;
+    if (!selectedId && !isDebt) return;
     if (wallets.length > 0 && !selectedWallet && type !== 'investment') { alert("Selecione uma conta/carteira!"); return; }
     if (isDebt && !selectedPerson) { alert("Selecione a pessoa vinculada."); return; }
 
@@ -112,6 +117,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
     try {
         let submitData = {
           amount, type, description, date, isSubscription, isDebt, isFuture,
+          isBorrowed: isDebt ? isBorrowed : false,
           walletId: selectedWallet, personId: isDebt ? selectedPerson : null,
           dueDay: isSubscription ? dueDay : null,
           paymentMethod: type === 'expense' ? paymentMethod : 'debit',
@@ -125,9 +131,14 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
           submitData.macro = "Investimentos";
           submitData.assetId = assetObj.id;
         } else {
-          const catObj = categories.find(c => c.id === selectedId);
-          submitData.categoryName = catObj.name;
-          submitData.macro = catObj.macro;
+          if (selectedId) {
+            const catObj = categories.find(c => c.id === selectedId);
+            submitData.categoryName = catObj.name;
+            submitData.macro = catObj.macro;
+          } else {
+            submitData.categoryName = "Empréstimo";
+            submitData.macro = "Despesas";
+          }
         }
         
         await onSubmit(submitData);
@@ -213,11 +224,12 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
         />
 
         {!initialData && !isInstallment && (
-            <AdditionalOptions 
+            <AdditionalOptions
                 type={type}
                 isSubscription={isSubscription} setIsSubscription={setIsSubscription}
                 isFuture={isFuture} setIsFuture={setIsFuture}
                 isDebt={isDebt} setIsDebt={setIsDebt}
+                isBorrowed={isBorrowed} setIsBorrowed={setIsBorrowed}
                 dueDay={dueDay} setDueDay={setDueDay}
                 selectedPerson={selectedPerson} setSelectedPerson={setSelectedPerson}
                 setIsInstallment={setIsInstallment}

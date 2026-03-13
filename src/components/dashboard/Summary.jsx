@@ -22,8 +22,9 @@ export function Summary({ transactions, assets = [], totalBalance, budgets = [],
   const pendingDebt = transactions
     .filter((t) => t.isDebt && !t.debtPaid)
     .reduce((acc, t) => {
-      if (t.type === 'expense') return acc + t.amount;  // a receber
-      if (t.type === 'income') return acc - t.amount;   // devo
+      if (t.type === 'expense' && !t.isBorrowed) return acc + t.amount;  // a receber
+      if (t.type === 'expense' && t.isBorrowed)  return acc - t.amount;  // a pagar
+      if (t.type === 'income')                   return acc - t.amount;  // legado: a pagar
       return acc;
     }, 0);
 
