@@ -22,7 +22,7 @@ export default function Dashboard() {
   const { transactions, addTransaction, deleteTransaction, deleteInstallmentGroup, updateTransaction, toggleDebtStatus, addTransfer, confirmFutureReceipt } = useTransactions();
   const { categories, budgets, saveBudget } = useCategories(); 
   const { assets, addContribution, removeContribution } = useInvestments();
-  const { wallets, addWallet, setAsDefault, deleteWallet } = useWallets(); 
+  const { wallets, addWallet, setAsDefault, deleteWallet, updateWallet } = useWallets();
   const { createSubscription, processSubscriptions, updateSubscription } = useSubscriptions();
 
   const [currentDate, setCurrentDate] = useState(new Date()); 
@@ -79,7 +79,7 @@ export default function Dashboard() {
   }, [filteredTransactions]);
 
   const overallBalance = useMemo(() => {
-    return transactions.reduce((acc, t) => {
+    const txBalance = transactions.reduce((acc, t) => {
       if (t.isFuture || t.isTransfer) return acc;
       if (t.date && t.date.seconds * 1000 > new Date().getTime()) return acc;
       if (t.type === 'income') {
@@ -95,7 +95,9 @@ export default function Dashboard() {
       if (t.type === 'investment') return acc - t.amount;
       return acc;
     }, 0);
-  }, [transactions]);
+    const initialBalancesSum = wallets.reduce((acc, w) => acc + (w.initialBalance || 0), 0);
+    return txBalance + initialBalancesSum;
+  }, [transactions, wallets]);
 
   const { futureTransactions, futureBalance } = useMemo(() => {
     const ft = transactions.filter(t => t.isFuture && t.type === 'income');
@@ -118,7 +120,7 @@ export default function Dashboard() {
                return acc - t.amount;
            }
            return acc;
-        }, 0);
+        }, 0) + (w.initialBalance || 0);
 
       let currentInvoice = 0;
       let allUnpaidInvoices = 0; 
@@ -274,16 +276,17 @@ export default function Dashboard() {
             onOpenBudgetModal={() => setBudgetModalOpen(true)}
         />
 
-        <WalletManager 
+        <WalletManager
             wallets={wallets}
             walletBalances={walletBalances}
-            overallBalance={overallBalance} 
-            futureBalance={futureBalance} 
+            overallBalance={overallBalance}
+            futureBalance={futureBalance}
             transactions={transactions}
             onOpenFutureModal={() => setFutureModalOpen(true)}
             onAddWallet={addWallet}
             onSetDefault={setAsDefault}
             onDeleteWallet={deleteWallet}
+            onUpdateWallet={updateWallet}
             onTransfer={addTransfer}
             onAddTransaction={addTransaction}
             setNotification={setNotification}

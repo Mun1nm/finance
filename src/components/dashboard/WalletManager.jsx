@@ -7,21 +7,23 @@ import { WalletList } from "./wallet/WalletList";
 import { CreateWalletModal } from "./wallet/CreateWalletModal";
 import { TransferModal } from "./wallet/TransferModal";
 import { DeleteWalletModal } from "./wallet/DeleteWalletModal";
-import { InstallmentsModal } from "./wallet/InstallmentsModal"; // <-- Importe o novo modal
+import { InstallmentsModal } from "./wallet/InstallmentsModal";
+import { WalletEditModal } from "./wallet/WalletEditModal";
 
-export function WalletManager({ 
-  wallets, 
-  walletBalances, 
-  overallBalance, 
-  futureBalance, 
-  transactions, 
-  onOpenFutureModal, 
-  onAddWallet, 
-  onSetDefault, 
-  onDeleteWallet, 
-  onTransfer, 
+export function WalletManager({
+  wallets,
+  walletBalances,
+  overallBalance,
+  futureBalance,
+  transactions,
+  onOpenFutureModal,
+  onAddWallet,
+  onSetDefault,
+  onDeleteWallet,
+  onUpdateWallet,
+  onTransfer,
   onAddTransaction,
-  setNotification 
+  setNotification
 }) {
   const { payInvoice } = useTransactions();
 
@@ -29,8 +31,9 @@ export function WalletManager({
   const [isWalletModalOpen, setIsWalletModalOpen] = useState(false);
   const [walletDeleteData, setWalletDeleteData] = useState(null);
   const [invoiceModalWallet, setInvoiceModalWallet] = useState(null);
-  const [isInstallmentsModalOpen, setIsInstallmentsModalOpen] = useState(false); // <-- Estado em vez do objeto carteira
-  
+  const [isInstallmentsModalOpen, setIsInstallmentsModalOpen] = useState(false);
+  const [editingWallet, setEditingWallet] = useState(null);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -111,6 +114,20 @@ export function WalletManager({
       setNotification({ msg: "Fatura paga com sucesso!", type: "success" });
   };
 
+  const handleSaveWalletEdit = async (walletId, newInitialBalance) => {
+    try {
+        setIsSubmitting(true);
+        await onUpdateWallet(walletId, { initialBalance: newInitialBalance });
+        setEditingWallet(null);
+        setNotification({ msg: "Saldo ajustado!", type: "success" });
+    } catch (error) {
+        console.error("Erro ao ajustar saldo:", error);
+        setNotification({ msg: "Erro ao ajustar saldo.", type: "error" });
+    } finally {
+        setIsSubmitting(false);
+    }
+  };
+
   const totalInvoices = walletBalances.reduce((acc, w) => acc + (w.allUnpaidInvoices || 0), 0);
 
   return (
@@ -125,11 +142,12 @@ export function WalletManager({
             onOpenInstallmentsModal={() => setIsInstallmentsModalOpen(true)} // <-- Passando a função
         />
 
-        <WalletList 
+        <WalletList
             wallets={walletBalances}
             onSetDefault={onSetDefault}
             onDeleteClick={setWalletDeleteData}
             onWalletClick={setInvoiceModalWallet}
+            onEditWallet={setEditingWallet}
         />
 
         <CreateWalletModal isOpen={isWalletModalOpen} onClose={() => setIsWalletModalOpen(false)} onAddWallet={handleCreateWallet} isSubmitting={isSubmitting} />
@@ -140,8 +158,15 @@ export function WalletManager({
             <InvoiceModal wallet={invoiceModalWallet} transactions={transactions} onClose={() => setInvoiceModalWallet(null)} onPayInvoice={handlePayInvoice} />
         )}
 
-        {/* NOVO MODAL GLOBAL DE PARCELAS */}
-        <InstallmentsModal 
+        <WalletEditModal
+            wallet={editingWallet}
+            onClose={() => setEditingWallet(null)}
+            onSave={handleSaveWalletEdit}
+            isSubmitting={isSubmitting}
+        />
+
+        {/* MODAL GLOBAL DE PARCELAS */}
+        <InstallmentsModal
             isOpen={isInstallmentsModalOpen}
             transactions={transactions}
             wallets={wallets}
