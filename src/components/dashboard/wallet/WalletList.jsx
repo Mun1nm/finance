@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
-import { Star, Trash2, CreditCard, Receipt, MoreVertical, X } from "lucide-react";
+import { Star, Trash2, CreditCard, Receipt, MoreVertical, X, SlidersHorizontal } from "lucide-react";
 
-export function WalletList({ wallets, onSetDefault, onDeleteClick, onWalletClick }) {
+export function WalletList({ wallets, onSetDefault, onDeleteClick, onWalletClick, onEditWallet }) {
   const [openMenuId, setOpenMenuId] = useState(null);
 
   useEffect(() => {
@@ -21,17 +21,25 @@ export function WalletList({ wallets, onSetDefault, onDeleteClick, onWalletClick
             >
                 <div className="absolute top-2 right-2 z-20">
                     <div className="hidden md:flex flex-col gap-1 items-center">
-                         <button 
-                            onClick={(e) => { e.stopPropagation(); onSetDefault(w.id); }} 
+                         <button
+                            onClick={(e) => { e.stopPropagation(); onSetDefault(w.id); }}
                             className={`p-1.5 rounded-full transition-colors ${w.isDefault ? 'text-yellow-400 hover:bg-yellow-400/10' : 'text-gray-600 hover:text-yellow-200 hover:bg-gray-700'}`}
                             title={w.isDefault ? "Padrão" : "Definir como Padrão"}
                         >
                             <Star size={14} fill={w.isDefault ? "currentColor" : "none"} />
                         </button>
-                        
+
+                        <button
+                            onClick={(e) => { e.stopPropagation(); onEditWallet(w); }}
+                            className="p-1.5 rounded-full text-gray-600 hover:text-blue-400 hover:bg-blue-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                            title="Ajustar Saldo"
+                        >
+                            <SlidersHorizontal size={14} />
+                        </button>
+
                         {!w.isDefault && (
-                            <button 
-                                onClick={(e) => { e.stopPropagation(); onDeleteClick(w); }} 
+                            <button
+                                onClick={(e) => { e.stopPropagation(); onDeleteClick(w); }}
                                 className="p-1.5 rounded-full text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
                                 title="Excluir Carteira"
                             >
@@ -52,18 +60,25 @@ export function WalletList({ wallets, onSetDefault, onDeleteClick, onWalletClick
                         </button>
 
                         {openMenuId === w.id && (
-                            <div className="absolute right-0 top-full mt-1 w-32 bg-gray-900 border border-gray-700 rounded-lg shadow-xl overflow-hidden animate-fade-in z-30">
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); onSetDefault(w.id); setOpenMenuId(null); }} 
+                            <div className="absolute right-0 top-full mt-1 w-36 bg-gray-900 border border-gray-700 rounded-lg shadow-xl overflow-hidden animate-fade-in z-30">
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onSetDefault(w.id); setOpenMenuId(null); }}
                                     className={`w-full text-left px-3 py-2 text-xs flex items-center gap-2 ${w.isDefault ? 'text-yellow-400 bg-yellow-400/10' : 'text-gray-300 hover:bg-gray-800'}`}
                                 >
-                                    <Star size={12} fill={w.isDefault ? "currentColor" : "none"} /> 
+                                    <Star size={12} fill={w.isDefault ? "currentColor" : "none"} />
                                     {w.isDefault ? 'É Padrão' : 'Tornar Padrão'}
                                 </button>
-                                
+
+                                <button
+                                    onClick={(e) => { e.stopPropagation(); onEditWallet(w); setOpenMenuId(null); }}
+                                    className="w-full text-left px-3 py-2 text-xs text-blue-400 hover:bg-blue-500/10 flex items-center gap-2 border-t border-gray-800"
+                                >
+                                    <SlidersHorizontal size={12} /> Ajustar Saldo
+                                </button>
+
                                 {!w.isDefault && (
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); onDeleteClick(w); setOpenMenuId(null); }} 
+                                    <button
+                                        onClick={(e) => { e.stopPropagation(); onDeleteClick(w); setOpenMenuId(null); }}
                                         className="w-full text-left px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2 border-t border-gray-800"
                                     >
                                         <Trash2 size={12} /> Excluir

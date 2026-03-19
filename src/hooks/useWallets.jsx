@@ -39,10 +39,11 @@ export function useWallets() {
       uid: currentUser.uid,
       name,
       isDefault: false,
-      hasCredit, 
+      hasCredit,
       closingDay: hasCredit ? parseInt(closingDay) : null,
       dueDay: hasCredit ? parseInt(dueDay) : null,
-      creditLimit: hasCredit ? parseFloat(creditLimit) : 0, // Novo Campo
+      creditLimit: hasCredit ? parseFloat(creditLimit) : 0,
+      initialBalance: 0,
       createdAt: new Date()
     });
   };
