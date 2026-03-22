@@ -9,7 +9,7 @@ import { SortableContext, verticalListSortingStrategy, arrayMove } from "@dnd-ki
 
 export default function PeoplePage() {
   const { people, addPerson, deletePerson, updatePerson, reorderPeople, sortPeopleAlphabetically } = usePeople();
-  const { transactions, toggleDebtStatus } = useTransactions();
+  const { transactions, toggleDebtStatus, toggleGroupDebtStatus } = useTransactions();
   const navigate = useNavigate();
 
   const [newPersonName, setNewPersonName] = useState("");
@@ -118,6 +118,7 @@ export default function PeoplePage() {
                 person={p}
                 deletePerson={deletePerson}
                 toggleDebtStatus={toggleDebtStatus}
+                toggleGroupDebtStatus={toggleGroupDebtStatus}
                 updatePerson={updatePerson}
               />
             ))}

@@ -237,8 +237,64 @@ export function useTransactions() {
     const q = query(transactionRef, where("installmentGroupId", "==", groupId), where("uid", "==", currentUser.uid));
     const snapshot = await getDocs(q);
     const batch = writeBatch(db);
-    snapshot.docs.forEach((doc) => batch.delete(doc.ref));
+    snapshot.docs.forEach((d) => {
+      const data = d.data();
+      if (data.reimbursementId) {
+        batch.delete(doc(db, "transactions", data.reimbursementId));
+      }
+      batch.delete(d.ref);
+    });
     await batch.commit();
+  };
+
+  const toggleGroupDebtStatus = async (groupId) => {
+    if (!userProfile?.isAuthorized || !groupId) return;
+    const q = query(transactionRef, where("installmentGroupId", "==", groupId), where("uid", "==", currentUser.uid));
+    const snapshot = await getDocs(q);
+    const groupDocs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+    if (groupDocs.length === 0) return;
+
+    const allPaid = groupDocs.every(d => d.debtPaid);
+    const sample = groupDocs[0];
+
+    if (sample.isBorrowed) {
+      const batch = writeBatch(db);
+      groupDocs.forEach(d => {
+        batch.update(doc(db, "transactions", d.id), { debtPaid: !allPaid });
+      });
+      await batch.commit();
+    } else if (!allPaid) {
+      const batch = writeBatch(db);
+      groupDocs.filter(d => !d.debtPaid).forEach(d => {
+        const reimbRef = doc(collection(db, "transactions"));
+        batch.set(reimbRef, {
+          uid: currentUser.uid,
+          amount: d.amount,
+          category: "Reembolso",
+          macro: "Receitas",
+          type: "income",
+          description: `Reembolso: ${d.description || 'Dívida'}`,
+          isDebt: false,
+          debtPaid: false,
+          isFuture: false,
+          date: serverTimestamp(),
+          walletId: d.walletId,
+          paymentMethod: 'debit',
+          relatedDebtId: d.id
+        });
+        batch.update(doc(db, "transactions", d.id), { debtPaid: true, reimbursementId: reimbRef.id });
+      });
+      await batch.commit();
+    } else {
+      const batch = writeBatch(db);
+      groupDocs.forEach(d => {
+        if (d.reimbursementId) {
+          batch.delete(doc(db, "transactions", d.reimbursementId));
+        }
+        batch.update(doc(db, "transactions", d.id), { debtPaid: false, reimbursementId: null });
+      });
+      await batch.commit();
+    }
   };
 
   const deleteTransactionsByAssetId = async (assetId) => {
@@ -378,7 +434,8 @@ export function useTransactions() {
     deleteTransactionsByAssetId,
     updateTransaction, 
     toggleDebtStatus,
+    toggleGroupDebtStatus,
     confirmFutureReceipt,
-    payInvoice 
+    payInvoice
   };
 }
