@@ -1,9 +1,9 @@
 import { useState, useMemo } from "react";
-import { Trash2, ChevronDown, CheckCircle2, Clock, Calendar, ChevronLeft, ChevronRight, Wallet, GripVertical, Pencil, Check, X } from "lucide-react";
+import { Trash2, ChevronDown, CheckCircle2, Clock, Calendar, ChevronLeft, ChevronRight, Wallet, GripVertical, Pencil, Check, X, Layers } from "lucide-react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-export function PersonCard({ person, deletePerson, toggleDebtStatus, updatePerson }) {
+export function PersonCard({ person, deletePerson, toggleDebtStatus, toggleGroupDebtStatus, updatePerson }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [currentDate, setCurrentDate] = useState(new Date());
   const [isEditing, setIsEditing] = useState(false);
@@ -35,6 +35,26 @@ export function PersonCard({ person, deletePerson, toggleDebtStatus, updatePerso
     }, 0);
   }, [monthlyData]);
 
+  const groupedData = useMemo(() => {
+    const groups = new Map();
+    const standalone = [];
+    monthlyData.forEach(t => {
+      if (t.installmentGroupId) {
+        if (!groups.has(t.installmentGroupId)) groups.set(t.installmentGroupId, []);
+        groups.get(t.installmentGroupId).push(t);
+      } else {
+        standalone.push(t);
+      }
+    });
+    // Grupos com apenas 1 parcela no mês tratados como standalone
+    const realGroups = [];
+    groups.forEach((items, groupId) => {
+      if (items.length > 1) realGroups.push({ groupId, items });
+      else standalone.push(items[0]);
+    });
+    return { groups: realGroups, standalone };
+  }, [monthlyData]);
+
   const prevMonth = (e) => { e.stopPropagation(); setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() - 1))); };
   const nextMonth = (e) => { e.stopPropagation(); setCurrentDate(new Date(currentDate.setMonth(currentDate.getMonth() + 1))); };
 
@@ -43,6 +63,8 @@ export function PersonCard({ person, deletePerson, toggleDebtStatus, updatePerso
 
   const getBalanceColor = (val) => val > 0 ? 'text-green-400' : val < 0 ? 'text-red-400' : 'text-gray-400';
   const getStatusText = (val) => val > 0 ? "Te deve" : val < 0 ? "Você deve" : "Quitado";
+  // Verde = alguém me deve (a receber); Vermelho = eu devo (a pagar)
+  const getDebtColor = (t) => (t.isBorrowed || t.type === 'income') ? 'text-red-400' : 'text-green-400';
 
   const handleSaveName = async () => {
     const trimmed = editName.trim();
@@ -188,43 +210,98 @@ export function PersonCard({ person, deletePerson, toggleDebtStatus, updatePerso
                             <p className="text-xs">Nada em {monthLabel}.</p>
                         </div>
                     ) : (
-                        monthlyData.map(t => (
-                            <div key={t.id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-gray-800 p-3 rounded-lg border border-gray-700 gap-3">
+                        <>
+                            {/* Grupos de parcelas */}
+                            {groupedData.groups.map(({ groupId, items }) => {
+                                const allPaid = items.every(t => t.debtPaid);
+                                const totalGroup = items.reduce((s, t) => s + t.amount, 0);
+                                const baseDesc = (items[0].description || items[0].category).replace(/\s*\(\d+\/\d+\)\s*$/, '');
+                                return (
+                                    <div key={groupId} className="rounded-lg border border-purple-500/30 bg-purple-900/10 overflow-hidden">
+                                        {/* Header do grupo */}
+                                        <div className="flex items-center justify-between px-3 py-2 border-b border-purple-500/20">
+                                            <div className="flex items-center gap-2">
+                                                <Layers size={12} className="text-purple-400 shrink-0" />
+                                                <span className="text-xs font-bold text-purple-300 line-clamp-1">{baseDesc}</span>
+                                                <span className="text-[10px] text-gray-500">{items.length} parcelas</span>
+                                            </div>
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                <span className={`text-xs font-bold ${allPaid ? 'line-through opacity-40 text-gray-400' : getDebtColor(items[0])}`}>
+                                                    R$ {totalGroup.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                </span>
+                                                <button
+                                                    onClick={() => toggleGroupDebtStatus(groupId)}
+                                                    className={`text-[10px] font-bold px-2 py-1 rounded border transition-all active:scale-95 whitespace-nowrap ${
+                                                        allPaid
+                                                        ? 'text-green-400 border-green-500/20 bg-green-500/5'
+                                                        : 'text-purple-400 border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20'
+                                                    }`}
+                                                >
+                                                    {allPaid ? 'Desfazer Todas' : 'Marcar Todas'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                        {/* Parcelas individuais */}
+                                        <div className="divide-y divide-gray-700/30">
+                                            {items.map(t => (
+                                                <div key={t.id} className="flex items-center justify-between px-3 py-2 gap-3">
+                                                    <span className="text-xs text-gray-400">
+                                                        Dia {new Date(t.date?.seconds * 1000).getDate()} · {t.description?.match(/\(\d+\/\d+\)/)?.[0] || ''}
+                                                    </span>
+                                                    <div className="flex items-center gap-2 shrink-0">
+                                                        <span className={`text-xs font-bold ${getDebtColor(t)} ${t.debtPaid ? 'line-through opacity-50' : ''}`}>
+                                                            R$ {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                                        </span>
+                                                        <button
+                                                            onClick={() => toggleDebtStatus(t.id, t.debtPaid)}
+                                                            className={`text-[10px] font-bold px-2 py-1 rounded border transition-all active:scale-95 whitespace-nowrap ${
+                                                                t.debtPaid
+                                                                ? 'text-green-400 border-green-500/20 bg-green-500/5'
+                                                                : 'text-orange-400 border-orange-500/20 bg-orange-500/5 hover:bg-orange-500/10'
+                                                            }`}
+                                                        >
+                                                            {t.debtPaid ? 'Pago' : 'Pendente'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                );
+                            })}
 
-                                {/* Info Principal */}
-                                <div className="flex flex-col gap-1">
-                                    <span className="text-sm font-medium text-gray-200 line-clamp-1">
-                                        {t.description || t.category}
-                                    </span>
-                                    <div className="flex items-center gap-2 text-[10px] text-gray-400">
-                                        <span className="bg-gray-700/50 px-1.5 py-0.5 rounded">
-                                            Dia {new Date(t.date?.seconds * 1000).getDate()}
+                            {/* Transações standalone */}
+                            {groupedData.standalone.map(t => (
+                                <div key={t.id} className="flex flex-col sm:flex-row sm:items-center justify-between bg-gray-800 p-3 rounded-lg border border-gray-700 gap-3">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-sm font-medium text-gray-200 line-clamp-1">
+                                            {t.description || t.category}
                                         </span>
-                                        {t.macro && <span>{t.macro}</span>}
+                                        <div className="flex items-center gap-2 text-[10px] text-gray-400">
+                                            <span className="bg-gray-700/50 px-1.5 py-0.5 rounded">
+                                                Dia {new Date(t.date?.seconds * 1000).getDate()}
+                                            </span>
+                                            {t.macro && <span>{t.macro}</span>}
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center justify-between sm:justify-end gap-3 border-t sm:border-t-0 border-gray-700/50 pt-2 sm:pt-0">
+                                        <span className={`font-bold text-sm ${getDebtColor(t)} ${t.debtPaid ? 'line-through opacity-50' : ''}`}>
+                                            R$ {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                                        </span>
+                                        <button
+                                            onClick={() => toggleDebtStatus(t.id, t.debtPaid)}
+                                            className={`text-[10px] font-bold px-3 py-1.5 rounded-md border transition-all active:scale-95 whitespace-nowrap ${
+                                                t.debtPaid
+                                                ? 'text-green-400 border-green-500/20 bg-green-500/5'
+                                                : 'text-orange-400 border-orange-500/20 bg-orange-500/5 hover:bg-orange-500/10'
+                                            }`}
+                                        >
+                                            {t.debtPaid ? "Pago" : "Pendente"}
+                                        </button>
                                     </div>
                                 </div>
-
-                                {/* Valor e Ação */}
-                                <div className="flex items-center justify-between sm:justify-end gap-3 border-t sm:border-t-0 border-gray-700/50 pt-2 sm:pt-0">
-                                    <span className={`font-bold text-sm ${
-                                        t.type === 'income' ? 'text-red-400' : 'text-green-400'
-                                    } ${t.debtPaid ? 'line-through opacity-50' : ''}`}>
-                                        R$ {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                                    </span>
-
-                                    <button
-                                        onClick={() => toggleDebtStatus(t.id, t.debtPaid)}
-                                        className={`text-[10px] font-bold px-3 py-1.5 rounded-md border transition-all active:scale-95 whitespace-nowrap ${
-                                            t.debtPaid
-                                            ? 'text-green-400 border-green-500/20 bg-green-500/5'
-                                            : 'text-orange-400 border-orange-500/20 bg-orange-500/5 hover:bg-orange-500/10'
-                                        }`}
-                                    >
-                                        {t.debtPaid ? "Pago" : "Pendente"}
-                                    </button>
-                                </div>
-                            </div>
-                        ))
+                            ))}
+                        </>
                     )}
                 </div>
             </div>

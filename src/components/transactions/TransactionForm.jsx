@@ -77,7 +77,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
   }, [initialData, categories, assets, wallets]);
 
   useEffect(() => { if (type !== 'expense') { setPaymentMethod("debit"); setIsInstallment(false); } }, [type]);
-  useEffect(() => { if (paymentMethod === 'debit') setIsInstallment(false); }, [paymentMethod]);
+  useEffect(() => { if (paymentMethod === 'debit' && !isDebt) setIsInstallment(false); }, [paymentMethod, isDebt]);
 
   const resetForm = () => {
       setAmount("");
@@ -194,8 +194,8 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
            </div>
         )}
 
-        {type === 'expense' && hasCredit && (
-            <PaymentOptions 
+        {type === 'expense' && (hasCredit || isDebt) && (
+            <PaymentOptions
                 paymentMethod={paymentMethod}
                 setPaymentMethod={setPaymentMethod}
                 hasCredit={hasCredit}
@@ -204,6 +204,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
                 installmentsCount={installmentsCount}
                 setInstallmentsCount={setInstallmentsCount}
                 isSubscription={isSubscription}
+                isDebt={isDebt}
             />
         )}
 
@@ -223,7 +224,7 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
             categories={categories}
         />
 
-        {!initialData && !isInstallment && (
+        {!initialData && (
             <AdditionalOptions
                 type={type}
                 isSubscription={isSubscription} setIsSubscription={setIsSubscription}
