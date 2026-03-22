@@ -80,14 +80,12 @@ export default function InvestmentsPage() {
       const grossAmount = netAmount + tax;
 
       await processWithdrawal(selectedAsset.id, grossAmount, isFullWithdrawal);
-      
-      // CORREÇÃO: Passando 'today' em vez de null
-      await addTransaction(grossAmount, selectedAsset.name, "Rendimentos", "income", false, "Resgate de Investimento", today, selectedWallet, null, selectedAsset.id);
 
-      if (tax > 0) {
-        // CORREÇÃO: Passando 'today' em vez de null na taxa também
-        await addTransaction(tax, "Impostos e Taxas", "Investimentos", "expense", false, `Imposto sobre Resgate: ${selectedAsset.name}`, today, selectedWallet, null, selectedAsset.id);
-      }
+      const description = tax > 0
+        ? `Resgate de Investimento • IR/Taxas: R$ ${tax.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+        : "Resgate de Investimento";
+
+      await addTransaction(netAmount, selectedAsset.name, "Rendimentos", "income", false, description, today, selectedWallet, null, selectedAsset.id);
 
       setNotification({ msg: isFullWithdrawal ? "Resgate total concluído!" : "Resgate realizado!", type: "success" });
     }
