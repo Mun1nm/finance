@@ -298,12 +298,13 @@ export default function Dashboard() {
           </div>
           
           <div className="lg:col-span-7 space-y-6">
-            <AnalysisSection 
-                transactions={filteredTransactions.filter(t => 
-                    t.type === chartType && 
-                    !t.isFuture && 
-                    !t.isInvoicePayment && 
-                    !t.isTransfer
+            <AnalysisSection
+                transactions={filteredTransactions.filter(t =>
+                    t.type === chartType &&
+                    !t.isFuture &&
+                    !t.isInvoicePayment &&
+                    !t.isTransfer &&
+                    !t.assetId
                 )}
                 chartType={chartType}
                 setChartType={setChartType}

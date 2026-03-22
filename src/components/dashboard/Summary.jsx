@@ -5,11 +5,13 @@ export function Summary({ transactions, assets = [], totalBalance, budgets = [],
   const income = transactions
     .filter((t) => t.type === "income" && !t.isFuture)
     .filter((t) => !t.isDebt)
+    .filter((t) => !t.assetId)
     .reduce((acc, t) => acc + t.amount, 0);
 
   const expense = transactions
     .filter((t) => t.type === "expense")
     .filter((t) => !(t.isDebt && t.debtPaid))
+    .filter((t) => !t.assetId)
     .reduce((acc, t) => acc + t.amount, 0);
 
   const investmentsFlow = transactions
@@ -35,6 +37,7 @@ export function Summary({ transactions, assets = [], totalBalance, budgets = [],
   
   const relevantExpense = transactions
     .filter((t) => t.type === "expense" && !(t.isDebt && t.debtPaid))
+    .filter((t) => !t.assetId)
     .filter((t) => budgets.some(b => b.macro === t.macro))
     .reduce((acc, t) => acc + t.amount, 0);
 
