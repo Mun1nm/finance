@@ -293,7 +293,7 @@ export default function Dashboard() {
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          <div className="lg:col-span-5 relative lg:sticky lg:top-24 z-0">
+          <div className="lg:col-span-5 relative lg:sticky lg:top-24 z-0 lg:max-h-[calc(100vh-7rem)] lg:overflow-y-auto">
             <TransactionForm onSubmit={handleFormSubmit} categories={categories} assets={assets} wallets={wallets} initialData={editingData} onCancelEdit={() => setEditingData(null)} />
           </div>
           

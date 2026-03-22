@@ -12,6 +12,7 @@ export function Summary({ transactions, assets = [], totalBalance, budgets = [],
     .filter((t) => t.type === "expense")
     .filter((t) => !(t.isDebt && t.debtPaid))
     .filter((t) => !t.assetId)
+    .filter((t) => !t.isInvoicePayment)
     .reduce((acc, t) => acc + t.amount, 0);
 
   const investmentsFlow = transactions

@@ -20,35 +20,7 @@ export function WalletList({ wallets, onSetDefault, onDeleteClick, onWalletClick
                 }`}
             >
                 <div className="absolute top-2 right-2 z-20">
-                    <div className="hidden md:flex flex-col gap-1 items-center">
-                         <button
-                            onClick={(e) => { e.stopPropagation(); onSetDefault(w.id); }}
-                            className={`p-1.5 rounded-full transition-colors ${w.isDefault ? 'text-yellow-400 hover:bg-yellow-400/10' : 'text-gray-600 hover:text-yellow-200 hover:bg-gray-700'}`}
-                            title={w.isDefault ? "Padrão" : "Definir como Padrão"}
-                        >
-                            <Star size={14} fill={w.isDefault ? "currentColor" : "none"} />
-                        </button>
-
-                        <button
-                            onClick={(e) => { e.stopPropagation(); onEditWallet(w); }}
-                            className="p-1.5 rounded-full text-gray-600 hover:text-blue-400 hover:bg-blue-500/10 transition-colors opacity-0 group-hover:opacity-100"
-                            title="Ajustar Saldo"
-                        >
-                            <SlidersHorizontal size={14} />
-                        </button>
-
-                        {!w.isDefault && (
-                            <button
-                                onClick={(e) => { e.stopPropagation(); onDeleteClick(w); }}
-                                className="p-1.5 rounded-full text-gray-600 hover:text-red-400 hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
-                                title="Excluir Carteira"
-                            >
-                                <Trash2 size={14} />
-                            </button>
-                        )}
-                    </div>
-
-                    <div className="md:hidden relative">
+                    <div className="relative">
                         <button 
                             onClick={(e) => { 
                                 e.stopPropagation(); 
