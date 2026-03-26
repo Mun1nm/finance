@@ -8,6 +8,18 @@ export const parseCurrency = (value) => {
   return parseFloat(val) / 100;
 };
 
+export const toYearMonth = (date) => {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
+};
+
+export const prevYearMonth = (yearMonth) => {
+  const [y, m] = yearMonth.split('-').map(Number);
+  const d = new Date(y, m - 2, 1);
+  return toYearMonth(d);
+};
+
 export const calculateInstallmentPreview = (amount, installments) => {
     if (!amount || !installments || installments === 0) return "0,00";
     
