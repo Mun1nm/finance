@@ -1,8 +1,9 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useCategories } from "../hooks/useCategories";
 import { useTransactions } from "../hooks/useTransactions";
 import { ArrowLeft, Trash2, ArrowUpCircle, ArrowDownCircle, Pencil, X, ChevronDown, ChevronRight, Wallet, Check, ClipboardList } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { useTutorial } from "../contexts/TutorialContext";
 import { EXPENSE_MACROS, INCOME_MACROS } from "../utils/constants";
 import { CompactMoneyInput } from "../components/ui/CompactMoneyInput";
 import { MonthNavigator } from "../components/dashboard/MonthNavigator";
@@ -12,6 +13,23 @@ export default function CategoriesPage() {
   const { categories, budgets, addCategory, deleteCategory, updateCategory, saveBudget, getBudgetsForMonth, copyBudgetsToMonth, findPreviousBudgetMonth } = useCategories();
   const { transactions } = useTransactions();
   const navigate = useNavigate();
+  const { startTutorial, isReady: tutorialReady, isTutorialCompleted } = useTutorial();
+
+  // Tutorial trigger
+  const categoryPageTutorialFired = useRef(false);
+
+  useEffect(() => {
+    if (!tutorialReady || categoryPageTutorialFired.current) return;
+
+    const timer = setTimeout(() => {
+      if (!isTutorialCompleted('categoryPage')) {
+        startTutorial('categoryPage');
+        categoryPageTutorialFired.current = true;
+      }
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [tutorialReady, isTutorialCompleted, startTutorial]);
 
   const [newCat, setNewCat] = useState("");
   const [type, setType] = useState("expense");
@@ -115,7 +133,7 @@ export default function CategoriesPage() {
         <h1 className="text-xl font-bold">Gerir Categorias</h1>
       </header>
 
-      <div className="flex gap-2 mb-6">
+      <div id="tutorial-category-type-toggle" className="flex gap-2 mb-6">
         <button
           disabled={!!editingId}
           onClick={() => { setType("expense"); setSelectedMacro(EXPENSE_MACROS[0]); }}
@@ -245,7 +263,7 @@ export default function CategoriesPage() {
       )}
 
       {/* FORMULÁRIO DE CATEGORIA */}
-      <div className={`p-4 rounded-xl mb-6 border shadow-lg transition-colors ${editingId ? 'bg-blue-900/20 border-blue-500/50' : 'bg-gray-800 border-gray-700'}`}>
+      <div id="tutorial-category-form" className={`p-4 rounded-xl mb-6 border shadow-lg transition-colors ${editingId ? 'bg-blue-900/20 border-blue-500/50' : 'bg-gray-800 border-gray-700'}`}>
 
         {editingId && (
           <div className="flex justify-between items-center mb-4 text-blue-400">
@@ -290,7 +308,7 @@ export default function CategoriesPage() {
         </form>
       </div>
 
-      <div className="space-y-2 pb-10">
+      <div id="tutorial-category-list" className="space-y-2 pb-10">
         <h3 className="text-gray-400 uppercase text-xs font-bold mb-2">
           Categorias de {activeConfig.label}
         </h3>

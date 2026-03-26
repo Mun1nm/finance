@@ -57,7 +57,7 @@ export function WalletHeader({
             <button onClick={onOpenTransferModal} className="flex-1 sm:flex-none justify-center text-xs bg-blue-600/20 text-blue-400 px-3 py-2 rounded-lg border border-blue-500/50 flex items-center gap-1 hover:bg-blue-600/30">
                 <ArrowRightLeft size={14} /> Transferir
             </button>
-            <button onClick={onOpenCreateModal} className="flex-1 sm:flex-none justify-center text-xs bg-gray-700 text-gray-300 px-3 py-2 rounded-lg flex items-center gap-1 hover:bg-gray-600">
+            <button id="tutorial-create-wallet-btn" onClick={onOpenCreateModal} className="flex-1 sm:flex-none justify-center text-xs bg-gray-700 text-gray-300 px-3 py-2 rounded-lg flex items-center gap-1 hover:bg-gray-600">
                 <Plus size={14} /> Nova
             </button>
         </div>

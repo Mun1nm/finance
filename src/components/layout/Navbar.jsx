@@ -72,6 +72,7 @@ export function Navbar() {
             </button>
 
             <button 
+                id="tutorial-categories-nav"
                 onClick={() => navigate("/categories")} 
                 className={`p-2 rounded-lg transition-all ${isActive("/categories")}`} 
                 title="Categorias"

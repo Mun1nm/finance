@@ -131,7 +131,7 @@ export function WalletManager({
   const totalInvoices = walletBalances.reduce((acc, w) => acc + (w.allUnpaidInvoices || 0), 0);
 
   return (
-    <div className="bg-gray-800 p-6 rounded-xl border border-gray-700">
+    <div id="tutorial-wallet-section" className="bg-gray-800 p-6 rounded-xl border border-gray-700">
         <WalletHeader 
             overallBalance={overallBalance}
             futureBalance={futureBalance}
