@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
+import { useTutorial } from "../contexts/TutorialContext";
 import { useAuth } from "../contexts/AuthContext";
 import { useTransactions } from "../hooks/useTransactions";
 import { useCategories } from "../hooks/useCategories";
@@ -25,6 +26,7 @@ export default function Dashboard() {
   const { assets, addContribution, removeContribution } = useInvestments();
   const { wallets, addWallet, setAsDefault, deleteWallet, updateWallet } = useWallets();
   const { createSubscription, processSubscriptions, updateSubscription } = useSubscriptions();
+  const { startTutorial, isReady: tutorialReady, isTutorialCompleted } = useTutorial();
 
   const [currentDate, setCurrentDate] = useState(new Date()); 
   const [chartMode, setChartMode] = useState("macro");
@@ -50,6 +52,25 @@ export default function Dashboard() {
       setNotification({ msg: "Recorrências processadas!", type: "info" });
     }, wallets);
   }, [wallets]);
+
+  // --- TUTORIAL TRIGGERS ---
+  const initialTutorialFired = useRef(false);
+  
+  useEffect(() => {
+    if (!tutorialReady || initialTutorialFired.current) return;
+
+    const timer = setTimeout(() => {
+      if (wallets.length === 0 && !isTutorialCompleted('wallet')) {
+        startTutorial('wallet');
+        initialTutorialFired.current = true;
+      } else if (wallets.length > 0 && categories.length === 0 && !isTutorialCompleted('category')) {
+        startTutorial('category');
+        initialTutorialFired.current = true;
+      }
+    }, 600); // Small delay to let UI render first
+
+    return () => clearTimeout(timer);
+  }, [wallets, categories, tutorialReady, isTutorialCompleted, startTutorial]);
 
   // --- OTIMIZAÇÃO DE PERFORMANCE (useMemo) ---
   const currentYearMonth = useMemo(() => toYearMonth(currentDate), [currentDate]);
@@ -271,6 +292,8 @@ export default function Dashboard() {
         onPrev={prevMonth} 
         onNext={nextMonth} 
       />
+
+
 
       <div className="space-y-6">
         <Summary 
