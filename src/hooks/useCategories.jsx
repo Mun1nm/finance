@@ -1,16 +1,18 @@
 import { useState, useEffect } from "react";
 import { db } from "../services/firebase";
-import { 
-  collection, 
-  addDoc, 
-  query, 
-  where, 
-  onSnapshot, 
+import {
+  collection,
+  addDoc,
+  query,
+  where,
+  onSnapshot,
   deleteDoc,
-  updateDoc, 
-  doc
+  updateDoc,
+  doc,
+  writeBatch
 } from "firebase/firestore";
 import { useAuth } from "../contexts/AuthContext";
+import { toYearMonth } from "../utils/formatters";
 
 export function useCategories() {
   const { currentUser, userProfile } = useAuth();
@@ -64,9 +66,9 @@ export function useCategories() {
     await deleteDoc(doc(db, "categories", id));
   };
 
-  const saveBudget = async (macro, limit) => {
+  const saveBudget = async (macro, limit, yearMonth) => {
     if (!userProfile?.isAuthorized) return;
-    const existingBudget = budgets.find(b => b.macro === macro);
+    const existingBudget = budgets.find(b => b.macro === macro && b.yearMonth === yearMonth);
     const floatLimit = parseFloat(limit);
 
     if (existingBudget) {
@@ -77,9 +79,46 @@ export function useCategories() {
         await updateDoc(docRef, { limit: floatLimit });
       }
     } else if (floatLimit > 0) {
-      await addDoc(budgetsRef, { uid: currentUser.uid, macro, limit: floatLimit });
+      await addDoc(budgetsRef, { uid: currentUser.uid, macro, limit: floatLimit, yearMonth });
     }
   };
 
-  return { categories, budgets, loading, addCategory, deleteCategory, updateCategory, saveBudget };
+  const getBudgetsForMonth = (yearMonth) => {
+    return budgets.filter(b => b.yearMonth === yearMonth);
+  };
+
+  const findPreviousBudgetMonth = (beforeYearMonth) => {
+    const months = [...new Set(budgets.filter(b => b.yearMonth).map(b => b.yearMonth))]
+      .filter(ym => ym < beforeYearMonth)
+      .sort()
+      .reverse();
+    return months[0] || null;
+  };
+
+  const copyBudgetsToMonth = async (targetYearMonth) => {
+    if (!userProfile?.isAuthorized) return;
+    if (getBudgetsForMonth(targetYearMonth).length > 0) return;
+
+    const prevMonth = findPreviousBudgetMonth(targetYearMonth);
+    let sourceBudgets;
+    if (prevMonth) {
+      sourceBudgets = getBudgetsForMonth(prevMonth);
+    } else {
+      sourceBudgets = budgets.filter(b => !b.yearMonth);
+    }
+    if (!sourceBudgets || sourceBudgets.length === 0) return;
+
+    const batch = writeBatch(db);
+    sourceBudgets.forEach(b => {
+      const newDocRef = doc(collection(db, "budgets"));
+      batch.set(newDocRef, { uid: currentUser.uid, macro: b.macro, limit: b.limit, yearMonth: targetYearMonth });
+    });
+    await batch.commit();
+  };
+
+  return {
+    categories, budgets, loading,
+    addCategory, deleteCategory, updateCategory,
+    saveBudget, getBudgetsForMonth, findPreviousBudgetMonth, copyBudgetsToMonth
+  };
 }

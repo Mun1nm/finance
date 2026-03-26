@@ -15,12 +15,13 @@ import { WalletManager } from "../components/dashboard/WalletManager";
 import { MonthNavigator } from "../components/dashboard/MonthNavigator";
 import { AnalysisSection } from "../components/dashboard/AnalysisSection";
 import { FutureTransactionsModal } from "../components/dashboard/FutureTransactionsModal";
-import { BudgetModal } from "../components/dashboard/BudgetModal"; 
+import { BudgetModal } from "../components/dashboard/BudgetModal";
+import { toYearMonth } from "../utils/formatters";
 
 export default function Dashboard() {
   // Puxa nova função deleteInstallmentGroup
   const { transactions, addTransaction, deleteTransaction, deleteInstallmentGroup, updateTransaction, toggleDebtStatus, addTransfer, confirmFutureReceipt } = useTransactions();
-  const { categories, budgets, saveBudget } = useCategories(); 
+  const { categories, budgets, saveBudget, getBudgetsForMonth } = useCategories();
   const { assets, addContribution, removeContribution } = useInvestments();
   const { wallets, addWallet, setAsDefault, deleteWallet, updateWallet } = useWallets();
   const { createSubscription, processSubscriptions, updateSubscription } = useSubscriptions();
@@ -51,6 +52,10 @@ export default function Dashboard() {
   }, [wallets]);
 
   // --- OTIMIZAÇÃO DE PERFORMANCE (useMemo) ---
+  const currentYearMonth = useMemo(() => toYearMonth(currentDate), [currentDate]);
+
+  const monthBudgets = useMemo(() => getBudgetsForMonth(currentYearMonth), [budgets, currentYearMonth]);
+
   const filteredTransactions = useMemo(() => {
     return transactions.filter(t => {
       if (!t.date) return false;
@@ -272,7 +277,7 @@ export default function Dashboard() {
             transactions={filteredTransactions.filter(t => !t.isTransfer)} 
             assets={assets} 
             totalBalance={monthlyBalance}
-            budgets={budgets}
+            budgets={monthBudgets}
             onOpenBudgetModal={() => setBudgetModalOpen(true)}
         />
 
@@ -332,12 +337,15 @@ export default function Dashboard() {
         onConfirmReceipt={handleConfirmReceipt}
       />
 
-      <BudgetModal 
+      <BudgetModal
         isOpen={budgetModalOpen}
         onClose={() => setBudgetModalOpen(false)}
-        budgets={budgets}
+        budgets={monthBudgets}
         transactions={filteredTransactions}
-        saveBudget={saveBudget}
+        saveBudget={(macro, limit) => saveBudget(macro, limit, currentYearMonth)}
+        currentYearMonth={currentYearMonth}
+        allBudgets={budgets}
+        allTransactions={transactions}
       />
     </div>
   );
