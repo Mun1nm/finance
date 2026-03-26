@@ -8,7 +8,7 @@ import { AdditionalOptions } from "./form/AdditionalOptions";
 // IMPORTAR AQUI
 import { calculateInstallmentPreview } from "../../utils/formatters"; 
 
-export function TransactionForm({ onSubmit, categories, assets, wallets, initialData, onCancelEdit }) {
+export function TransactionForm({ onSubmit, categories, assets, wallets, addCategory, initialData, onCancelEdit }) {
   const today = new Date().toLocaleDateString('en-CA');
 
   const [amount, setAmount] = useState("");
@@ -216,12 +216,13 @@ export function TransactionForm({ onSubmit, categories, assets, wallets, initial
             <input type="text" placeholder="Descrição (Opcional)" value={description} onChange={(e) => setDescription(e.target.value)} className="w-full bg-gray-700 text-white rounded-lg p-3 outline-none focus:ring-2 focus:ring-blue-500 placeholder-gray-400 text-sm" />
         </div>
 
-        <CategorySelector 
+        <CategorySelector
             type={type}
             selectedId={selectedId}
             setSelectedId={setSelectedId}
             assets={assets}
             categories={categories}
+            addCategory={addCategory}
         />
 
         {!initialData && (
