@@ -100,24 +100,33 @@ export function TutorialOverlay() {
     }
   }, [targetRect, step]);
 
-  // Track target element with requestAnimationFrame
+  // Scroll target element into view and track position
   useEffect(() => {
     if (!activeTutorial || !step) {
       setIsVisible(false);
       return;
     }
 
-    // Small delay to let DOM settle
+    // First, scroll the target element into view
+    const el = document.getElementById(step.targetId);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+    }
+
+    // Wait for scroll to finish, then show overlay
     const showTimeout = setTimeout(() => {
       measureTarget();
       setIsVisible(true);
-    }, 100);
+    }, 400);
 
     const tick = () => {
       measureTarget();
       animFrameRef.current = requestAnimationFrame(tick);
     };
-    animFrameRef.current = requestAnimationFrame(tick);
+    // Start tracking after scroll settles
+    const trackTimeout = setTimeout(() => {
+      animFrameRef.current = requestAnimationFrame(tick);
+    }, 350);
 
     // Listen for resize/scroll
     window.addEventListener("resize", measureTarget);
@@ -125,6 +134,7 @@ export function TutorialOverlay() {
 
     return () => {
       clearTimeout(showTimeout);
+      clearTimeout(trackTimeout);
       if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current);
       window.removeEventListener("resize", measureTarget);
       window.removeEventListener("scroll", measureTarget, true);

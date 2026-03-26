@@ -55,7 +55,7 @@ export default function Dashboard() {
 
   // --- TUTORIAL TRIGGERS ---
   const initialTutorialFired = useRef(false);
-  
+
   useEffect(() => {
     if (!tutorialReady || initialTutorialFired.current) return;
 
@@ -67,7 +67,7 @@ export default function Dashboard() {
         startTutorial('category');
         initialTutorialFired.current = true;
       }
-    }, 600); // Small delay to let UI render first
+    }, 600);
 
     return () => clearTimeout(timer);
   }, [wallets, categories, tutorialReady, isTutorialCompleted, startTutorial]);
