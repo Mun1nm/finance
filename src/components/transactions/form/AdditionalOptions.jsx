@@ -49,7 +49,6 @@ export function AdditionalOptions({
                 onChange={(e) => {
                     setIsSubscription(e.target.checked);
                     if(e.target.checked) {
-                        setIsDebt(false);
                         setIsFuture(false);
                         setIsInstallment(false);
                     }
@@ -78,8 +77,8 @@ export function AdditionalOptions({
          </div>
       )}
 
-      {/* Dívida — apenas na aba expense */}
-      {type === 'expense' && !isSubscription && !isFuture && (
+      {/* Dívida — aba expense, agora compatível com assinatura */}
+      {type === 'expense' && !isFuture && (
          <div className={`p-2 rounded-lg border transition-colors ${isDebt ? borderActive : 'bg-gray-700/50 border-gray-600'}`}>
              <div className={`flex items-center gap-2 ${isDebt ? 'mb-3' : ''}`}>
                  <div className="relative flex items-center">
