@@ -1,15 +1,17 @@
 import { useSubscriptions } from "../hooks/useSubscriptions";
-import { ArrowLeft, Play, Pause, Trash2, Calendar, CreditCard, CheckCircle2, XCircle, Pencil, Save, X, TrendingUp, TrendingDown, Wallet } from "lucide-react";
+import { ArrowLeft, Play, Pause, Trash2, Calendar, CreditCard, CheckCircle2, XCircle, Pencil, Save, X, TrendingUp, TrendingDown, Wallet, User } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { Notification } from "../components/ui/Notification";
 import { ConfirmModal } from "../components/ui/ConfirmModal";
 import { useWallets } from "../hooks/useWallets";
+import { usePeople } from "../hooks/usePeople";
 import { MoneyInput } from "../components/ui/MoneyInput";
 
 export default function SubscriptionsPage() {
   const { subscriptions, toggleSubscription, deleteSubscription, updateSubscription } = useSubscriptions();
   const { wallets } = useWallets();
+  const { people } = usePeople();
   const navigate = useNavigate();
   const [notification, setNotification] = useState(null);
   const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: null });
@@ -69,6 +71,11 @@ export default function SubscriptionsPage() {
     return w ? w.name : "Padrão / Indefinida";
   };
 
+  const getPersonName = (id) => {
+    const p = people.find(p => p.id === id);
+    return p ? p.name : null;
+  };
+
   const renderCard = (sub) => {
     const isIncome = sub.type === 'income';
 
@@ -85,7 +92,7 @@ export default function SubscriptionsPage() {
               
               <div>
                   <h4 className={`font-bold ${sub.active ? 'text-white' : 'text-gray-400 line-through'}`}>{sub.name}</h4>
-                  <div className="flex items-center gap-3 text-xs text-gray-400 mt-1">
+                  <div className="flex items-center gap-2 flex-wrap text-xs text-gray-400 mt-1">
                       <span className="flex items-center gap-1">
                           {sub.paymentMethod === 'credit' ? <CreditCard size={10} className="text-purple-400"/> : <Wallet size={10} className="text-gray-400"/>}
                           {getWalletName(sub.walletId)}
@@ -93,6 +100,18 @@ export default function SubscriptionsPage() {
                       <span className="bg-gray-700 px-1.5 py-0.5 rounded text-gray-300 flex items-center gap-1">
                         <Calendar size={10} /> Dia {sub.day}
                       </span>
+                      {sub.personId && getPersonName(sub.personId) && (
+                          <span className={`px-1.5 py-0.5 rounded flex items-center gap-1 border ${
+                              sub.isBorrowed 
+                                ? 'bg-orange-900/30 text-orange-400 border-orange-800' 
+                                : 'bg-green-900/30 text-green-400 border-green-800'
+                          }`}>
+                              <User size={10} />
+                              {getPersonName(sub.personId)}
+                              <span className="opacity-70">·</span>
+                              {sub.isBorrowed ? 'A pagar' : 'A receber'}
+                          </span>
+                      )}
                   </div>
               </div>
           </div>

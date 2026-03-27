@@ -29,7 +29,7 @@ export function useSubscriptions() {
   }, [currentUser, userProfile]);
 
   // 2. CRIAR
-  const createSubscription = async (amount, category, macro, name, type, day, walletId, initialPaymentMade, paymentMethod = 'debit') => {
+  const createSubscription = async (amount, category, macro, name, type, day, walletId, initialPaymentMade, paymentMethod = 'debit', personId = null, isDebt = false, isBorrowed = false) => {
     if (!currentUser || !userProfile?.isAuthorized) return;
     
     const today = new Date();
@@ -50,8 +50,11 @@ export function useSubscriptions() {
       day: parseInt(day),
       walletId: walletId || null,
       paymentMethod, 
+      personId: personId || null,
+      isDebt: !!isDebt,
+      isBorrowed: !!isBorrowed,
       lastProcessedMonth: initialPaymentMade ? currentMonth : lastMonthIdx,
-      lastProcessedYear: initialPaymentMade ? currentYear : lastYearIdx, // Novo campo para segurança
+      lastProcessedYear: initialPaymentMade ? currentYear : lastYearIdx,
       active: true
     });
   };
@@ -166,13 +169,15 @@ export function useSubscriptions() {
           sub.category, 
           sub.macro,    
           sub.type || 'expense',
-          false,        
+          sub.isDebt || false,        
           `Assinatura Mensal: ${sub.name}`,
-          nextDueDate.toLocaleDateString('en-CA'), // Usa a data da recorrência, não hoje
+          nextDueDate.toLocaleDateString('en-CA'),
           sub.walletId,
           subDoc.id, 
           paymentMethod, 
-          invoiceDate    
+          invoiceDate,
+          sub.personId || null,
+          sub.isBorrowed || false
         );
 
         // 3. Atualizar o banco para este mês específico (segurança contra falhas no meio do loop)

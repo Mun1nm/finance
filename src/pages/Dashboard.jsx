@@ -47,8 +47,8 @@ export default function Dashboard() {
     if (hasProcessedSubscriptions.current || wallets.length === 0) return; 
     hasProcessedSubscriptions.current = true;
 
-    processSubscriptions(async (val, cat, mac, typ, isDebt, desc, date, walletId, subId, paymentMethod, invoiceDate) => {
-      await addTransaction(val, cat, mac, typ, isDebt, desc, date, walletId, subId, null, null, false, paymentMethod, invoiceDate);
+    processSubscriptions(async (val, cat, mac, typ, isDebt, desc, date, walletId, subId, paymentMethod, invoiceDate, personId, isBorrowed) => {
+      await addTransaction(val, cat, mac, typ, isDebt, desc, date, walletId, subId, null, personId, false, paymentMethod, invoiceDate, false, 1, null, isBorrowed);
       setNotification({ msg: "Recorrências processadas!", type: "info" });
     }, wallets);
   }, [wallets]);
@@ -223,7 +223,7 @@ export default function Dashboard() {
           await addTransaction(amount, categoryName, macro, type, isDebt, description, date, walletId, null, assetId, personId, isFuture, paymentMethod, invoiceDate, false, installments, closingDay, isBorrowed);
       }
       if (isSubscription) {
-        await createSubscription(amount, categoryName, macro, categoryName, type, dueDay, walletId, shouldProcessNow, paymentMethod);
+        await createSubscription(amount, categoryName, macro, categoryName, type, dueDay, walletId, shouldProcessNow, paymentMethod, personId, isDebt, isBorrowed);
         setNotification({ msg: shouldProcessNow ? `Assinatura criada e debitada!` : `Agendado para dia ${dueDay}.`, type: "success" });
       } else {
         setNotification({ msg: "Salvo com sucesso!", type: "success" });
