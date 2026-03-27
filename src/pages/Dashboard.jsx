@@ -78,12 +78,25 @@ export default function Dashboard() {
   const monthBudgets = useMemo(() => getBudgetsForMonth(currentYearMonth), [budgets, currentYearMonth]);
 
   const filteredTransactions = useMemo(() => {
+    const getSortDate = (t) => {
+      if (t.installmentGroupId && t.installmentIndex) {
+        const d = new Date(t.date.seconds * 1000);
+        const day = d.getDate();
+        d.setDate(1);
+        d.setMonth(d.getMonth() - (t.installmentIndex - 1));
+        const maxDay = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        d.setDate(Math.min(day, maxDay));
+        return d.getTime();
+      }
+      return t.date ? t.date.seconds * 1000 : 0;
+    };
+
     return transactions.filter(t => {
       if (!t.date) return false;
       const tDate = new Date(t.date.seconds * 1000);
       return tDate.getMonth() === currentDate.getMonth() && 
              tDate.getFullYear() === currentDate.getFullYear();
-    });
+    }).sort((a, b) => getSortDate(b) - getSortDate(a));
   }, [transactions, currentDate]);
 
   const monthlyBalance = useMemo(() => {
