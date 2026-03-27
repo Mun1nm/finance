@@ -9,6 +9,8 @@ import { TransferModal } from "./wallet/TransferModal";
 import { DeleteWalletModal } from "./wallet/DeleteWalletModal";
 import { InstallmentsModal } from "./wallet/InstallmentsModal";
 import { WalletEditModal } from "./wallet/WalletEditModal";
+import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors } from "@dnd-kit/core";
+import { SortableContext, horizontalListSortingStrategy, arrayMove } from "@dnd-kit/sortable";
 
 export function WalletManager({
   wallets,
@@ -23,7 +25,8 @@ export function WalletManager({
   onUpdateWallet,
   onTransfer,
   onAddTransaction,
-  setNotification
+  setNotification,
+  onReorderWallets
 }) {
   const { payInvoice } = useTransactions();
 
@@ -130,6 +133,21 @@ export function WalletManager({
 
   const totalInvoices = walletBalances.reduce((acc, w) => acc + (w.allUnpaidInvoices || 0), 0);
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } })
+  );
+
+  const handleDragEnd = (event) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const oldIndex = walletBalances.findIndex(w => w.id === active.id);
+    const newIndex = walletBalances.findIndex(w => w.id === over.id);
+    const reordered = arrayMove(walletBalances, oldIndex, newIndex);
+    onReorderWallets(reordered);
+  };
+
   return (
     <div id="tutorial-wallet-section" className="bg-gray-800 p-6 rounded-xl border border-gray-700">
         <WalletHeader 
@@ -142,13 +160,17 @@ export function WalletManager({
             onOpenInstallmentsModal={() => setIsInstallmentsModalOpen(true)} // <-- Passando a função
         />
 
-        <WalletList
-            wallets={walletBalances}
-            onSetDefault={onSetDefault}
-            onDeleteClick={setWalletDeleteData}
-            onWalletClick={setInvoiceModalWallet}
-            onEditWallet={setEditingWallet}
-        />
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={walletBalances.map(w => w.id)} strategy={horizontalListSortingStrategy}>
+            <WalletList
+                wallets={walletBalances}
+                onSetDefault={onSetDefault}
+                onDeleteClick={setWalletDeleteData}
+                onWalletClick={setInvoiceModalWallet}
+                onEditWallet={setEditingWallet}
+            />
+          </SortableContext>
+        </DndContext>
 
         <CreateWalletModal isOpen={isWalletModalOpen} onClose={() => setIsWalletModalOpen(false)} onAddWallet={handleCreateWallet} isSubmitting={isSubmitting} />
         <TransferModal isOpen={isTransferModalOpen} onClose={() => setIsTransferModalOpen(false)} onTransfer={handleTransfer} wallets={wallets} isSubmitting={isSubmitting} />

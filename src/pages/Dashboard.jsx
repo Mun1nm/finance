@@ -24,7 +24,7 @@ export default function Dashboard() {
   const { transactions, addTransaction, deleteTransaction, deleteInstallmentGroup, updateTransaction, toggleDebtStatus, addTransfer, confirmFutureReceipt } = useTransactions();
   const { categories, budgets, addCategory, saveBudget, getBudgetsForMonth } = useCategories();
   const { assets, addContribution, removeContribution } = useInvestments();
-  const { wallets, addWallet, setAsDefault, deleteWallet, updateWallet } = useWallets();
+  const { wallets, addWallet, setAsDefault, deleteWallet, updateWallet, reorderWallets } = useWallets();
   const { createSubscription, processSubscriptions, updateSubscription } = useSubscriptions();
   const { startTutorial, isReady: tutorialReady, isTutorialCompleted } = useTutorial();
 
@@ -331,6 +331,7 @@ export default function Dashboard() {
             onTransfer={addTransfer}
             onAddTransaction={addTransaction}
             setNotification={setNotification}
+            onReorderWallets={reorderWallets}
         />
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">

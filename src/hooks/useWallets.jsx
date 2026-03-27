@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { db } from "../services/firebase";
 import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc, writeBatch, getDocs, updateDoc } from "firebase/firestore";
+
 import { useAuth } from "../contexts/AuthContext";
 
 export function useWallets() {
@@ -24,17 +25,47 @@ export function useWallets() {
         id: doc.id,
         ...doc.data()
       }));
-      // Ordena: Primeiro a Default, depois por nome
-      setWallets(data.sort((a, b) => (b.isDefault === true) - (a.isDefault === true) || a.name.localeCompare(b.name)));
+      // Ordena: Primeiro a Default, depois por sortOrder, depois por nome
+      data.sort((a, b) => {
+        if (a.isDefault && !b.isDefault) return -1;
+        if (!a.isDefault && b.isDefault) return 1;
+        const aOrder = a.sortOrder ?? Infinity;
+        const bOrder = b.sortOrder ?? Infinity;
+        if (aOrder !== bOrder) return aOrder - bOrder;
+        return a.name.localeCompare(b.name, 'pt-BR');
+      });
+      setWallets(data);
       setLoading(false);
     });
 
     return unsubscribe;
   }, [currentUser, userProfile]);
 
-  // ATUALIZADO: Aceita creditLimit
+  // Migração lazy: adiciona sortOrder às wallets que não têm
+  useEffect(() => {
+    if (!userProfile?.isAuthorized || wallets.length === 0) return;
+
+    const needsMigration = wallets.some(w => w.sortOrder === undefined);
+    if (!needsMigration) return;
+
+    const sorted = [...wallets].sort((a, b) => {
+      if (a.isDefault && !b.isDefault) return -1;
+      if (!a.isDefault && b.isDefault) return 1;
+      return a.name.localeCompare(b.name, 'pt-BR');
+    });
+    const batch = writeBatch(db);
+    sorted.forEach((w, index) => {
+      batch.update(doc(db, "wallets", w.id), { sortOrder: index });
+    });
+    batch.commit().catch(err => console.error("Erro na migração sortOrder wallets:", err));
+  }, [wallets, userProfile]);
+
+  // ATUALIZADO: Aceita creditLimit + sortOrder
   const addWallet = async (name, hasCredit = false, closingDay = null, dueDay = null, creditLimit = 0) => {
     if (!userProfile?.isAuthorized) return;
+    const maxOrder = wallets.length > 0
+      ? Math.max(...wallets.map(w => w.sortOrder ?? 0))
+      : -1;
     await addDoc(walletsRef, {
       uid: currentUser.uid,
       name,
@@ -44,6 +75,7 @@ export function useWallets() {
       dueDay: hasCredit ? parseInt(dueDay) : null,
       creditLimit: hasCredit ? parseFloat(creditLimit) : 0,
       initialBalance: 0,
+      sortOrder: maxOrder + 1,
       createdAt: new Date()
     });
   };
@@ -77,5 +109,14 @@ export function useWallets() {
     await batch.commit();
   };
 
-  return { wallets, loading, addWallet, deleteWallet, updateWallet, setAsDefault };
+  const reorderWallets = async (reorderedArray) => {
+    if (!userProfile?.isAuthorized) return;
+    const batch = writeBatch(db);
+    reorderedArray.forEach((w, index) => {
+      batch.update(doc(db, "wallets", w.id), { sortOrder: index });
+    });
+    await batch.commit();
+  };
+
+  return { wallets, loading, addWallet, deleteWallet, updateWallet, setAsDefault, reorderWallets };
 }
